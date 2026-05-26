@@ -314,7 +314,13 @@ notifications  [Laravel native]
   - adjacent booking (check_out == check_in) → allowed
   - cancelled booking nu blochează slot-ul
 - ✅ **Total teste: 13 verzi (53 assertions), durată ~46s**
-- 🟦 Următor (pas cu pas): (3) redirect post-login per rol, (4) 2FA Fortify pentru SuperAdmin/Host, (5) ERD diagram (Mermaid), (6) Etapa 2 (Properties + Search PostGIS).
+- ✅ **Redirect post-login per rol** (`App\Support\RoleRedirector::pathFor()`):
+  - `SuperAdmin → /admin`, `Host → /host`, `Provider → /provider`, default → `/dashboard`
+  - Integrat în `AuthenticatedSessionController::store()`
+  - Rute placeholder `/host`, `/provider` cu middleware `role:Host` / `role:Provider` (vor primi UI proprie în Etapele 4-5)
+- ✅ **`tests/Feature/RoleRedirectTest.php`** — 5 teste verzi (SuperAdmin, Host, Provider, Guest fallback, no-role fallback)
+- ✅ **Total teste cumulat: 18 verzi (63 assertions)**
+- 🟦 Următor (pas cu pas): (4) 2FA Fortify pentru SuperAdmin/Host, (5) ERD diagram (Mermaid), (6) Etapa 2 (Properties + Search PostGIS).
 
 ---
 

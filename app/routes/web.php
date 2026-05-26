@@ -11,6 +11,14 @@ Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
+Route::middleware(['auth', 'verified', 'role:Host'])->get('/host', function () {
+    return view('dashboard'); // placeholder — va deveni Host dashboard în Etapa 4
+})->name('host.dashboard');
+
+Route::middleware(['auth', 'verified', 'role:Provider'])->get('/provider', function () {
+    return view('dashboard'); // placeholder — va deveni Provider dashboard în Etapa 5
+})->name('provider.dashboard');
+
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
