@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Mail\BookingCancelledMail;
+use App\Mail\BookingConfirmedMail;
 use App\Models\Booking;
 use App\Models\Property;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use RuntimeException;
 
 class BookingService
@@ -61,5 +64,49 @@ class BookingService
 
             return Booking::create($attributes);
         });
+    }
+
+    /**
+     * Confirmă o rezervare (pending → confirmed). Trimite email guest-ului.
+     *
+     * @throws \DomainException dacă tranziția de stare nu este permisă
+     */
+    public function confirm(Booking $booking): Booking
+    {
+        if (! $booking->canTransitionTo('confirmed')) {
+            throw new \DomainException("Booking #{$booking->id} cannot transition from {$booking->status} to confirmed.");
+        }
+
+        $booking->status = 'confirmed';
+        $booking->save();
+
+        if ($booking->guest_email) {
+            Mail::to($booking->guest_email)->send(new BookingConfirmedMail($booking->fresh(['property'])));
+        }
+
+        return $booking->refresh();
+    }
+
+    /**
+     * Anulează o rezervare. Trimite email guest-ului cu motivul opțional.
+     *
+     * @throws \DomainException dacă tranziția de stare nu este permisă
+     */
+    public function cancel(Booking $booking, ?string $reason = null): Booking
+    {
+        if (! $booking->canTransitionTo('cancelled')) {
+            throw new \DomainException("Booking #{$booking->id} cannot transition from {$booking->status} to cancelled.");
+        }
+
+        $booking->status = 'cancelled';
+        $booking->cancelled_at = now();
+        $booking->cancellation_reason = $reason;
+        $booking->save();
+
+        if ($booking->guest_email) {
+            Mail::to($booking->guest_email)->send(new BookingCancelledMail($booking->fresh(['property']), $reason));
+        }
+
+        return $booking->refresh();
     }
 }

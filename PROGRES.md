@@ -619,6 +619,25 @@ erDiagram
 - ✅ **Total teste cumulat: 91 verzi (250 assertions), durată ~231s**
 - 🟦 Următor (pas cu pas): Notificări email (booking confirmat/anulat), Stripe checkout (payment_intent + webhook), Booking state transitions sau alte priorități — la alegerea utilizatorului.
 
+### Sesiune — Etapa 2 (Notificări email booking): BookingConfirmed / BookingCancelled
+- ✅ **Mailables** create în `app/Mail/`:
+  - `BookingConfirmedMail($booking)` — subject `Rezervarea ta a fost confirmată — {reference}`, view markdown `emails.bookings.confirmed`
+  - `BookingCancelledMail($booking, ?$reason)` — subject `Rezervarea ta a fost anulată — {reference}`, view markdown `emails.bookings.cancelled`
+- ✅ **Templates markdown** (`resources/views/emails/bookings/{confirmed,cancelled}.blade.php`) — folosesc componenta default `x-mail::message` (Laravel), afișează `guest_name`, `reference`, proprietate, interval, nopți, total
+- ✅ **`BookingService` extins** cu metode de tranziție de stare + trimitere mail:
+  - `confirm(Booking $b): Booking` — verifică `canTransitionTo('confirmed')`, aruncă `\DomainException` altfel; setează `status='confirmed'`; trimite `BookingConfirmedMail` la `guest_email` (skip dacă lipsește)
+  - `cancel(Booking $b, ?string $reason): Booking` — verifică `canTransitionTo('cancelled')`, setează `status='cancelled' + cancelled_at + cancellation_reason`; trimite `BookingCancelledMail` cu motivul
+- ✅ **Compatibil cu `BookingObserver` existent**: observer-ul aplică `Booking::ALLOWED_TRANSITIONS` (pending→confirmed/cancelled, confirmed→checked_in/cancelled/no_show, etc.) — orice salt nevalid din DB direct este blocat cu `InvalidArgumentException`
+- ✅ **`tests/Feature/BookingNotificationsTest.php`** — 5 teste verzi (cu `Mail::fake()` în `setUp`):
+  - confirmarea unui booking pending → status `confirmed` + `BookingConfirmedMail` trimis către `guest_email` cu `hasTo()` verificat
+  - confirmare după anulare → `\DomainException` + niciun mail trimis
+  - anulare cu motiv → status `cancelled`, `cancelled_at` setat, `cancellation_reason` salvat, mail conține motivul
+  - tentativă cancel pe booking `checked_out` (după parcurgerea pending→confirmed→checked_in→checked_out) → `\DomainException`
+  - confirmare cu `guest_email=null` → nu se trimite mail, dar status devine `confirmed`
+- ✅ **Lecție tehnică**: `BookingObserver` aplică tranziții valide la fiecare `save()`, deci în teste **nu** poți seta `status='checked_out'` direct dintr-un booking `pending` — trebuie parcurs lanțul `pending → confirmed → checked_in → checked_out` prin update-uri succesive.
+- ✅ **Total teste cumulat: 96 verzi (262 assertions), durată ~178s**
+- 🟦 Următor (pas cu pas): Stripe checkout (payment_intent + webhook), Booking state transitions UI (host confirm/cancel/check-in/out), Property gallery upload (Host) sau alte priorități — la alegerea utilizatorului.
+
 ---
 
 ## 5. Backlog / idei post-MVP
