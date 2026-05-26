@@ -56,19 +56,20 @@
 - [x] ✅ Horizon installed (provider + config)
 - [x] ✅ Fortify config + Actions publicate
 - [ ] Configurare Pest + Pint (pint deja inclus în Laravel 13)
-- [ ] GitHub Actions workflow CI
+- [x] ✅ GitHub Actions workflow CI (`.github/workflows/ci.yml` — PHP 8.3, Postgres+PostGIS, Redis, migrate + Pint + PHPStan + Pest)
 - [ ] ERD complet (diagramă)
 
-### ⬜ Etapa 1 — Fundație (Auth + RBAC + Migrații)
-- [ ] Migrații complete (toate tabelele — vezi §3)
-- [ ] Seederi de bază (roluri, permisiuni, amenities)
-- [ ] Models + relații + factories
+### 🟦 Etapa 1 — Fundație (Auth + RBAC + Migrații)
+- [x] ✅ Migrații complete pentru cele ~25 entități (9 fișiere noi: users+, hosts, providers/teams, amenities, properties+PostGIS, bookings+state_transitions, ical, tasks, business: reviews/plans/commissions/payouts/disputes/impersonation)
+- [x] ✅ PostGIS geography column `location` + index GIST pe `properties`
+- [x] ✅ Seederi: `RolesAndPermissionsSeeder` (4 roluri × 39 permisiuni), `AmenitiesSeeder` (27 amenities cu i18n RO/EN), `AdminUserSeeder` (`admin@mrhm.local` / `password`)
+- [x] ✅ Models Eloquent + relații: User (HasRoles), Host, Provider, Team, TeamMember, Property, PropertyPricingRule, Amenity, Booking (cu `ALLOWED_TRANSITIONS` state machine), BookingStateTransition, IcalFeed, IcalEvent, Task, Review (morphTo), Plan, Commission, Payout, Dispute, DisputeMessage, ImpersonationLog
 - [ ] Auth (Laravel Breeze cu Livewire)
-- [ ] 4 roluri + middleware: `SuperAdmin`, `Host`, `Provider`, `Guest`
-- [ ] Rute per rol cu redirect post-login
-- [ ] Audit log global activat
-- [ ] 2FA pentru SuperAdmin & Host (laravel/fortify)
-- [ ] i18n setup (`lang/ro/`, `lang/en/`)
+- [x] ✅ 4 roluri create: `SuperAdmin`, `Host`, `Provider`, `Guest` (permisiuni sincronizate)
+- [ ] Middleware per rol + redirect post-login
+- [ ] Audit log global activat (pachet instalat, model trait în lucru)
+- [ ] 2FA pentru SuperAdmin & Host (laravel/fortify — config publicat)
+- [x] ✅ i18n setup: `lang/ro/app.php` + `lang/en/app.php` (common, navigation, booking statuses)
 
 ### ⬜ Etapa 2 — Properties + Search
 - [ ] CRUD Properties (Host dashboard Livewire)
@@ -249,6 +250,34 @@ notifications  [Laravel native]
 - ✅ **Horizon** (provider + config) + **Fortify** (config + Actions) publicate
 - **Notă debugging**: Composer install pe bind-mount Windows este lent (~5-10 min per pachet din cauza unzip-ului). Workaround: `COMPOSER_PROCESS_TIMEOUT=0`. Permisiunile pentru fișiere noi trebuie reaplicate după fiecare composer require: `chown -R sail:sail storage bootstrap/cache database config app routes lang`.
 - 🟦 Următor: Pest setup, user admin Filament, GitHub Actions CI, ERD, apoi Etapa 1 (migrații complete pentru cele ~25 entități, modele + factories, Breeze Livewire, RBAC cu 4 roluri).
+
+### Sesiune 2026-05-26 (continuare 2) — Etapa 1 fundație
+- ✅ **9 migrații noi** rulate cu succes (toate tabelele core MRHM):
+  - `add_profile_columns_to_users_table` (phone, locale, avatar, last_login)
+  - `create_hosts_table` (cu KYC, Stripe Connect)
+  - `create_providers_and_teams_tables` (providers, teams, team_members)
+  - `create_amenities_table`
+  - `create_properties_table` (cu `location geography(POINT, 4326)` + index GIST + pricing_rules + property_amenities pivot)
+  - `create_bookings_table` (cu state machine + booking_state_transitions)
+  - `create_ical_tables` (ical_feeds + ical_events)
+  - `create_tasks_table` (cleaning, repair, inspection)
+  - `create_business_tables` (reviews polimorfic, plans, commissions, payouts, disputes, dispute_messages, impersonation_logs)
+- ✅ **41 tabele publice** în DB (35 MRHM + 6 PostGIS metadata)
+- ✅ **3 seederi**:
+  - `RolesAndPermissionsSeeder` — 4 roluri (SuperAdmin, Host, Provider, Guest) cu 39 permisiuni mapate granular
+  - `AmenitiesSeeder` — 27 amenități (basic, kitchen, bathroom, outdoor, safety, family) cu nume RO+EN
+  - `AdminUserSeeder` — `admin@mrhm.local` / `password` cu rol SuperAdmin
+- ✅ **19 modele Eloquent** create cu relații complete:
+  - User actualizat cu `HasRoles` (Spatie) + casts pentru profile cols
+  - Host, Provider, Team, TeamMember, Amenity, Property (cu morphMany reviews), PropertyPricingRule
+  - Booking (constante `STATUSES` + `ALLOWED_TRANSITIONS` pentru state machine + helper `canTransitionTo()`)
+  - BookingStateTransition, IcalFeed, IcalEvent, Task, Review (morphTo target), Plan, Commission, Payout, Dispute, DisputeMessage, ImpersonationLog
+- ✅ **i18n stubs**: `lang/ro/app.php` + `lang/en/app.php` (common UI, navigation, booking statuses)
+- ✅ **GitHub Actions CI**: `.github/workflows/ci.yml` cu matrix Postgres+PostGIS+Redis, rulează Pint + PHPStan + Pest pe push/PR în main/develop
+- ✅ **Verificare smoke** prin script PHP: User SuperAdmin → 39 permisiuni, 27 amenities, 8 statusuri booking corecte
+- ✅ **Filament `/admin/login` → HTTP 200 OK** după migrate+seed
+- **Note**: Models nu folosesc încă observers pentru `BookingStateTransition` (manual). Audit trait `OwenIt\Auditing\Auditable` nu este încă atașat la modele (urmează în Etapa 1 finalizare). Pricing rules MVP — fără overlap detection.
+- 🟦 Următor: Breeze Livewire install (auth UI + middleware), atașare trait audit la modele relevante, observer state machine booking, Pest config + primele teste (booking state machine, anti-overbooking), ERD diagram, commit Etapa 1.
 
 ---
 
