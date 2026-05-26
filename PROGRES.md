@@ -320,7 +320,20 @@ notifications  [Laravel native]
   - Rute placeholder `/host`, `/provider` cu middleware `role:Host` / `role:Provider` (vor primi UI proprie în Etapele 4-5)
 - ✅ **`tests/Feature/RoleRedirectTest.php`** — 5 teste verzi (SuperAdmin, Host, Provider, Guest fallback, no-role fallback)
 - ✅ **Total teste cumulat: 18 verzi (63 assertions)**
-- 🟦 Următor (pas cu pas): (4) 2FA Fortify pentru SuperAdmin/Host, (5) ERD diagram (Mermaid), (6) Etapa 2 (Properties + Search PostGIS).
+- ✅ **2FA fundație via Laravel Fortify ^1.37**:
+  - `composer require laravel/fortify` + `FortifyServiceProvider` înregistrat în `bootstrap/providers.php`
+  - `User` implementează `FilamentUser` (cu `canAccessPanel()` care permite doar `SuperAdmin` în panel-ul `admin`) și folosește trait-ul `TwoFactorAuthenticatable`
+  - `config/fortify.php` redus la doar `Features::twoFactorAuthentication([confirm, confirmPassword])` (registration/login/profile/passkeys eliminate — le gestionează Breeze)
+  - `Fortify::ignoreRoutes()` pentru a evita conflictele cu Breeze
+  - Migrații 2FA + passkeys deja aplicate (`add_two_factor_columns_to_users_table`, `create_passkeys_table`)
+  - Coloanele `two_factor_secret`, `two_factor_recovery_codes` adăugate în `#[Hidden]`
+- ✅ **Middleware `EnsureTwoFactorAuthenticated`** (alias `require_2fa`):
+  - Pentru rolurile `SuperAdmin` și `Host`, redirecționează la `/two-factor-setup` dacă 2FA nu este confirmat
+  - Aplicat pe Filament admin panel (`AdminPanelProvider::authMiddleware`) și pe ruta `/host`
+  - Pagină placeholder `/two-factor-setup` (view Breeze) explicând că UI completă urmează
+- ✅ **`tests/Feature/TwoFactorAuthenticationTest.php`** — 7 teste verzi (trait, coloane, redirect SuperAdmin/Host, Provider nu necesită 2FA, accesibil cu 2FA confirmat, no-loop pe setup)
+- ✅ **Total teste cumulat: 50 verzi (136 assertions), durată ~79s**
+- 🟦 Următor (pas cu pas): (5) ERD diagram (Mermaid), (6) Etapa 2 (Properties + Search PostGIS). UI completă pentru self-service 2FA setup (QR code + recovery codes + confirmation) este TODO într-o etapă ulterioară.
 
 ---
 

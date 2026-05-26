@@ -162,18 +162,12 @@ return [
     */
 
     'features' => [
-        Features::registration(),
-        Features::resetPasswords(),
-        // Features::emailVerification(),
-        Features::updateProfileInformation(),
-        Features::updatePasswords(),
+        // NB: Breeze handles registration/login/password reset/profile updates.
+        // Fortify is used ONLY for 2FA backend (TwoFactorAuthenticatable trait, columns, endpoints).
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => true,
             // 'window' => 0,
-        ]),
-        Features::passkeys([
-            'confirmPassword' => true,
         ]),
     ],
 
