@@ -213,6 +213,170 @@ dispute_messages (dispute_id, sender_id, body, attachments)
 notifications  [Laravel native]
 ```
 
+### 3.1. ERD — diagramă Mermaid
+
+```mermaid
+erDiagram
+    USERS ||--o| HOSTS : "owns (host_id)"
+    USERS ||--o| PROVIDERS : "owns (provider_id)"
+    USERS ||--o{ BOOKINGS : "guest_id"
+    USERS ||--o{ PASSKEYS : "owns"
+    USERS }o--o{ ROLES : "model_has_roles"
+    USERS }o--o{ PERMISSIONS : "model_has_permissions"
+    ROLES }o--o{ PERMISSIONS : "role_has_permissions"
+
+    HOSTS ||--o{ PROPERTIES : "host_id"
+    HOSTS ||--o{ PAYOUTS : "host_id"
+    HOSTS ||--o{ SUBSCRIPTIONS : "Cashier (billable)"
+
+    PROVIDERS ||--o{ TEAMS : "owner_provider_id"
+    TEAMS ||--o{ TEAM_MEMBERS : "team_id"
+    USERS ||--o{ TEAM_MEMBERS : "user_id"
+    PROVIDERS ||--o{ TASKS : "assigned_provider_id"
+
+    PROPERTIES ||--o{ BOOKINGS : "property_id"
+    PROPERTIES ||--o{ PROPERTY_PRICING_RULES : "property_id"
+    PROPERTIES ||--o{ ICAL_FEEDS : "property_id"
+    PROPERTIES ||--o{ ICAL_EVENTS : "property_id"
+    PROPERTIES ||--o{ TASKS : "property_id"
+    PROPERTIES ||--o{ REVIEWS : "property_id"
+    PROPERTIES }o--o{ AMENITIES : "property_amenities"
+
+    BOOKINGS ||--o{ BOOKING_STATE_TRANSITIONS : "booking_id (from→to, actor_id)"
+    BOOKINGS ||--o{ COMMISSIONS : "booking_id"
+    BOOKINGS ||--o{ DISPUTES : "booking_id"
+    BOOKINGS ||--o{ REVIEWS : "booking_id"
+    TASKS ||--o{ DISPUTES : "task_id"
+
+    DISPUTES ||--o{ DISPUTE_MESSAGES : "dispute_id"
+    USERS ||--o{ DISPUTE_MESSAGES : "sender_id"
+    USERS ||--o{ DISPUTES : "opener_id"
+
+    PLANS ||--o{ SUBSCRIPTIONS : "stripe_price_id"
+    SUBSCRIPTIONS ||--o{ SUBSCRIPTION_ITEMS : "subscription_id"
+
+    USERS ||--o{ IMPERSONATION_LOGS : "impersonator_id / impersonated_id"
+
+    %% Polymorphic (toate entitățile cu Auditable / HasMedia)
+    AUDITS }o--|| USERS : "user_id (actor)"
+
+    USERS {
+        bigint id PK
+        string name
+        string email UK
+        string password
+        string phone
+        string locale
+        text two_factor_secret
+        text two_factor_recovery_codes
+        timestamp two_factor_confirmed_at
+        timestamp email_verified_at
+    }
+
+    HOSTS {
+        bigint id PK
+        bigint user_id FK
+        string company_name
+        string cui
+        string kyc_status
+        json kyc_documents
+        string stripe_account_id
+        timestamp onboarded_at
+    }
+
+    PROVIDERS {
+        bigint id PK
+        bigint user_id FK
+        string trade_name
+        string service_radius_km
+        json service_categories
+    }
+
+    PROPERTIES {
+        bigint id PK
+        bigint host_id FK
+        string slug UK
+        string title
+        string property_type
+        string address
+        string city
+        decimal latitude
+        decimal longitude
+        decimal base_price
+        smallint max_guests
+        string status
+    }
+
+    BOOKINGS {
+        bigint id PK
+        string reference UK
+        bigint property_id FK
+        bigint guest_id FK
+        date check_in
+        date check_out
+        smallint nights
+        decimal total_price
+        string status
+        string payment_status
+        string stripe_payment_intent_id
+    }
+
+    BOOKING_STATE_TRANSITIONS {
+        bigint id PK
+        bigint booking_id FK
+        string from_state
+        string to_state
+        bigint actor_id FK
+        string reason
+        timestamp transitioned_at
+    }
+
+    TASKS {
+        bigint id PK
+        bigint property_id FK
+        bigint assigned_provider_id FK
+        string title
+        string category
+        string status
+        timestamp scheduled_at
+    }
+
+    DISPUTES {
+        bigint id PK
+        bigint booking_id FK
+        bigint task_id FK
+        bigint opener_id FK
+        string status
+        text resolution
+    }
+
+    AMENITIES {
+        bigint id PK
+        string slug UK
+        string name_ro
+        string name_en
+        string icon
+    }
+
+    PAYOUTS {
+        bigint id PK
+        bigint host_id FK
+        decimal amount
+        string status
+        timestamp paid_at
+    }
+
+    PLANS {
+        bigint id PK
+        string slug UK
+        string name
+        decimal monthly_price
+        string stripe_price_id
+    }
+```
+
+> Notă: relațiile polimorfice `audits` (OwenIt) și `media` (Spatie MediaLibrary) sunt atașate tuturor modelelor cu trait-ul corespunzător (Booking, Property, Host, Provider, Task, Dispute, Payout).
+
 ---
 
 ## 4. Jurnal de sesiuni
@@ -333,7 +497,8 @@ notifications  [Laravel native]
   - Pagină placeholder `/two-factor-setup` (view Breeze) explicând că UI completă urmează
 - ✅ **`tests/Feature/TwoFactorAuthenticationTest.php`** — 7 teste verzi (trait, coloane, redirect SuperAdmin/Host, Provider nu necesită 2FA, accesibil cu 2FA confirmat, no-loop pe setup)
 - ✅ **Total teste cumulat: 50 verzi (136 assertions), durată ~79s**
-- 🟦 Următor (pas cu pas): (5) ERD diagram (Mermaid), (6) Etapa 2 (Properties + Search PostGIS). UI completă pentru self-service 2FA setup (QR code + recovery codes + confirmation) este TODO într-o etapă ulterioară.
+- ✅ **ERD diagram Mermaid** adăugat în secțiunea 3.1 (entități domeniu + relațiile lor: USERS, HOSTS, PROVIDERS, PROPERTIES, BOOKINGS, BOOKING_STATE_TRANSITIONS, TASKS, DISPUTES, COMMISSIONS, PAYOUTS, PLANS, AMENITIES, PASSKEYS, ROLES/PERMISSIONS)
+- 🟦 Următor (pas cu pas): (6) Etapa 2 (Properties + Search PostGIS). TODO ulterior: UI completă self-service 2FA setup (QR + recovery codes), CI/CD lint (Pint/PHPStan).
 
 ---
 
