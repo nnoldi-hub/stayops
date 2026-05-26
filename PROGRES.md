@@ -302,7 +302,19 @@ notifications  [Laravel native]
   - Form + Table schemas auto-derivate din coloanele DB (split classes Filament 5.x: `Schemas/*Form`, `Tables/*Table`, `Pages/{List,Create,Edit}*`)
   - Configurate manual: `navigationLabel`, `modelLabel`, `pluralModelLabel` în RO, `navigationGroup` (Marketplace / Operațional / Configurare), `navigationSort`, `recordTitleAttribute` (reference / title / name_ro)
   - Admin panel verificat HTTP 200 după `config:clear && view:clear && cache:clear`
-- 🟦 Următor (pas cu pas): (2) factories Eloquent pentru User/Host/Property/Booking + anti-overbooking cu `lockForUpdate` + test concurență, (3) redirect post-login per rol, (4) 2FA Fortify pentru SuperAdmin/Host, (5) ERD diagram (Mermaid), (6) Etapa 2 (Properties + Search PostGIS).
+- ✅ **Factories Eloquent**: `HostFactory`, `PropertyFactory`, `BookingFactory` (cu states `pending`/`confirmed`); `UserFactory` exista deja
+- ✅ **Anti-overbooking** via `App\Services\BookingService::create()`:
+  - `DB::transaction` cu `Property::lockForUpdate()` (row-level lock per property)
+  - Detecție overlap în aceeași tranzacție (`check_in < new.check_out AND check_out > new.check_in`) cu `lockForUpdate` pe bookings
+  - Statusurile active blocante: `pending`, `confirmed`, `checked_in`; cancelled/refunded/no_show/checked_out/disputed nu blochează
+  - Aruncă `RuntimeException("Overbooking refuzat…")`
+- ✅ **`tests/Feature/BookingOverbookingTest.php`** — 4 teste verzi:
+  - first booking creates OK
+  - overlapping booking → RuntimeException
+  - adjacent booking (check_out == check_in) → allowed
+  - cancelled booking nu blochează slot-ul
+- ✅ **Total teste: 13 verzi (53 assertions), durată ~46s**
+- 🟦 Următor (pas cu pas): (3) redirect post-login per rol, (4) 2FA Fortify pentru SuperAdmin/Host, (5) ERD diagram (Mermaid), (6) Etapa 2 (Properties + Search PostGIS).
 
 ---
 
