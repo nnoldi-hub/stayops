@@ -8,6 +8,7 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\SpatieMediaLibraryImageColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
@@ -17,6 +18,11 @@ class PropertiesTable
     {
         return $table
             ->columns([
+                SpatieMediaLibraryImageColumn::make('cover')
+                    ->collection('photos')
+                    ->conversion('thumb')
+                    ->label('Foto')
+                    ->circular(),
                 TextColumn::make('host.id')
                     ->searchable(),
                 TextColumn::make('slug')
@@ -87,7 +93,6 @@ class PropertiesTable
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('location'),
             ])
             ->filters([
                 TrashedFilter::make(),

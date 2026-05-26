@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Properties\Schemas;
 
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TimePicker;
@@ -23,7 +24,14 @@ class PropertyForm
                     ->required(),
                 Textarea::make('description')
                     ->columnSpanFull(),
-                TextInput::make('property_type')
+                Select::make('property_type')
+                    ->options([
+                        'apartment' => 'Apartament',
+                        'house' => 'Casă',
+                        'villa' => 'Vilă',
+                        'studio' => 'Studio',
+                        'cabin' => 'Cabană',
+                    ])
                     ->required(),
                 TextInput::make('address')
                     ->required(),
@@ -37,7 +45,7 @@ class PropertyForm
                 TextInput::make('base_price')
                     ->required()
                     ->numeric()
-                    ->prefix('$'),
+                    ->prefix('RON'),
                 TextInput::make('currency')
                     ->required()
                     ->default('RON'),
@@ -75,18 +83,33 @@ class PropertyForm
                     ->default(30),
                 Textarea::make('house_rules')
                     ->columnSpanFull(),
-                TextInput::make('status')
+                Select::make('status')
+                    ->options([
+                        'draft' => 'Draft',
+                        'published' => 'Publicată',
+                        'paused' => 'Pauzată',
+                        'archived' => 'Arhivată',
+                    ])
                     ->required()
                     ->default('draft'),
-                TextInput::make('rating_avg')
-                    ->required()
-                    ->numeric()
-                    ->default(0),
-                TextInput::make('reviews_count')
-                    ->required()
-                    ->numeric()
-                    ->default(0),
-                TextInput::make('location'),
+                SpatieMediaLibraryFileUpload::make('photos')
+                    ->collection('photos')
+                    ->disk('public')
+                    ->image()
+                    ->multiple()
+                    ->reorderable()
+                    ->appendFiles()
+                    ->responsiveImages()
+                    ->maxSize(8192)
+                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
+                    ->columnSpanFull(),
+                SpatieMediaLibraryFileUpload::make('floor_plans')
+                    ->collection('floor_plans')
+                    ->disk('public')
+                    ->maxSize(8192)
+                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
+                    ->columnSpanFull(),
             ]);
     }
 }
+

@@ -517,6 +517,19 @@ erDiagram
 - ✅ **Total teste cumulat: 60 verzi (160 assertions), durată ~108s**
 - 🟦 Următor (pas cu pas): (6a.3) Host Property edit page cu upload foto (Livewire `WithFileUploads` sau Filament Resource cu SpatieMediaLibraryFileUpload); apoi (6b) Search PostGIS `ST_DWithin` + filtre amenities.
 
+### Sesiune — Etapa 2 (6a.3): Filament Property photo upload
+- ✅ **Plugin** `filament/spatie-laravel-media-library-plugin ^5.6` instalat
+- ✅ **`PropertyForm`** (Filament Schema):
+  - `SpatieMediaLibraryFileUpload::make('photos')` — colecția `photos`, disk `public`, `image()->multiple()->reorderable()->appendFiles()->responsiveImages()`, max 8MB, mime: jpeg/png/webp, `columnSpanFull()`
+  - `SpatieMediaLibraryFileUpload::make('floor_plans')` — colecția `floor_plans`, max 8MB, mime: jpeg/png/webp/pdf, `columnSpanFull()`
+  - `property_type` → `Select` cu opțiunile [apartment, house, villa, studio, cabin]
+  - `status` → `Select` cu [draft, published, paused, archived], default `draft`
+  - Eliminate: `TextInput::make('location')`, `rating_avg`, `reviews_count`; prefix `base_price` schimbat `$` → `RON`
+- ✅ **`PropertiesTable`** — adăugat `SpatieMediaLibraryImageColumn::make('cover')` (colecția `photos`, conversia `thumb`, circular) ca prima coloană; eliminat `TextColumn::make('location')`
+- ✅ **`tests/Feature/PropertyFilamentMediaTest.php`** — 4 teste verzi: render CreateProperty (form fields photos+floor_plans), upload `photos` via EditProperty, upload `floor_plan`, listare pagina `/admin/properties`. Admin actează cu rol SuperAdmin + 2FA confirmat (`two_factor_confirmed_at`) ca să treacă de middleware-ul `Require2FA`. Seed `RolesAndPermissionsSeeder` în `setUp()`.
+- ✅ **Total teste cumulat: 64 verzi (175 assertions), durată ~166s**
+- 🟦 Următor (pas cu pas): (6b) Search PostGIS `ST_DWithin` + filtre amenities pe `/properties`.
+
 ---
 
 ## 5. Backlog / idei post-MVP
