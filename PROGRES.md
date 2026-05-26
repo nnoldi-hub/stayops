@@ -589,6 +589,36 @@ erDiagram
 - ✅ **Total teste cumulat: 81 verzi (220 assertions), durată ~336s**
 - 🟦 Următor (pas cu pas): Host dashboard CRUD properties, Notificări email (booking confirmat/anulat), Stripe checkout (payment_intent + webhook) sau alte priorități — la alegerea utilizatorului.
 
+### Sesiune — Etapa 2 (Host dashboard CRUD properties): /host + /host/properties/{create,edit}
+- ✅ **Rute** (`routes/web.php`) — grup `auth + verified + role:Host + require_2fa`:
+  - `Volt::route('/host', 'host.dashboard')->name('host.dashboard')`
+  - `Volt::route('/host/properties/create', 'host.properties.create')->name('host.properties.create')`
+  - `Volt::route('/host/properties/{property}/edit', 'host.properties.edit')->name('host.properties.edit')`
+- ✅ **Componentă Volt `host.dashboard`** (`resources/views/livewire/host/dashboard.blade.php`):
+  - Folosește `WithPagination` și `#[Computed] host()` (returnează `Host::where('user_id', auth id)->first()`)
+  - Listează **doar** proprietățile host-ului curent (`where host_id`), paginare 10/pagină, empty state vizibil când e listă goală
+  - `delete(int $propertyId)` filtrează prin `whereHas('host', user_id=auth id)` + `firstOrFail()` → SoftDelete cu confirmare Livewire (`wire:confirm`)
+- ✅ **Componentă Volt `host.properties.create`** (`resources/views/livewire/host/properties/create.blade.php`):
+  - Formular cu validare strictă: title/address/city `required`, `property_type` în [apartment,house,villa,studio,cabin], `status` în [draft,published,paused,archived], `country` size 2, `currency` size 3, `base_price/cleaning_fee` numerice, capacități integer pozitive
+  - `save()` rezolvă `Host` prin `user_id=auth id`, generează slug `Str::slug(title)-Str::random(6)`, setează `check_in_time=15:00 / check_out_time=11:00` și redirecționează la pagina de edit
+- ✅ **Componentă Volt `host.properties.edit`** (`resources/views/livewire/host/properties/edit.blade.php`):
+  - `mount()`: `abort_unless($property->host?->user_id === auth()->id(), 403)` (gate strict pe ownership)
+  - Pre-populează toate câmpurile din model; `save()` rulează aceleași reguli de validare și `update()`; redirecționează la dashboard
+- ✅ **`tests/Feature/HostDashboardCrudTest.php`** — 10 teste verzi:
+  - guest neautentificat → redirect login
+  - user cu rol non-Host → 403
+  - host vede doar proprietățile proprii (nu pe ale altora)
+  - empty state când host-ul nu are proprietăți
+  - host creează proprietate (Property creat cu host_id, slug, status `draft`)
+  - validare câmpuri obligatorii pe create (title/address/city) → niciun Property creat
+  - host editează propria proprietate (title, base_price, status `draft`→`published`)
+  - host **nu** poate accesa pagina de edit pentru proprietatea altui host → 403
+  - host șterge propria proprietate (SoftDelete prin `Property::query()->find()` returnează null după)
+  - host nu poate șterge proprietatea altui host (`ModelNotFoundException` din `firstOrFail`, proprietatea rămâne în DB)
+- ✅ **Patternul user-test pentru rute cu Host + 2FA**: factory `User` cu `two_factor_secret + two_factor_confirmed_at`, `assignRole('Host')`, apoi `Host::factory()->create(['user_id' => $user->id])`
+- ✅ **Total teste cumulat: 91 verzi (250 assertions), durată ~231s**
+- 🟦 Următor (pas cu pas): Notificări email (booking confirmat/anulat), Stripe checkout (payment_intent + webhook), Booking state transitions sau alte priorități — la alegerea utilizatorului.
+
 ---
 
 ## 5. Backlog / idei post-MVP

@@ -25,9 +25,11 @@ Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-Route::middleware(['auth', 'verified', 'role:Host', 'require_2fa'])->get('/host', function () {
-    return view('dashboard'); // placeholder — va deveni Host dashboard în Etapa 4
-})->name('host.dashboard');
+Route::middleware(['auth', 'verified', 'role:Host', 'require_2fa'])->group(function () {
+    Volt::route('/host', 'host.dashboard')->name('host.dashboard');
+    Volt::route('/host/properties/create', 'host.properties.create')->name('host.properties.create');
+    Volt::route('/host/properties/{property}/edit', 'host.properties.edit')->name('host.properties.edit');
+});
 
 Route::middleware(['auth', 'verified', 'role:Provider'])->get('/provider', function () {
     return view('dashboard'); // placeholder — va deveni Provider dashboard în Etapa 5
