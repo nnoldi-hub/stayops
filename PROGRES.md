@@ -542,7 +542,33 @@ erDiagram
   - filtru pe două dotări (`wifi` + `parking`) — doar proprietatea care le are pe ambele (AND)
 - ✅ Setup test: `DB::statement` cu `ST_SetSRID(ST_MakePoint(?,?), 4326)::geography` pentru a popula `location`
 - ✅ **Total teste cumulat: 68 verzi (183 assertions), durată ~137s**
-- 🟦 Următor (pas cu pas): Booking flow public (calendar disponibilitate + checkout) sau alte priorități la alegerea utilizatorului.
+- 🟦 Următor (pas cu pas): Booking flow public (calendar disponibilitate + checkout).
+
+### Sesiune — Etapa 2 (Booking flow public): /properties/{slug}/book + /bookings/{ref}
+- ✅ **Rute web** (`routes/web.php`):
+  - `Volt::route('/properties/{property:slug}/book', 'properties.book')->middleware(['auth','verified'])->name('properties.book')`
+  - `Volt::route('/bookings/{booking:reference}', 'bookings.show')->middleware(['auth'])->name('bookings.show')`
+- ✅ **Componentă Volt `properties.book`** (`resources/views/livewire/properties/book.blade.php`):
+  - Props: `Property $property`, `checkIn`, `checkOut`, `guestsCount=1`, `specialRequests`, `errorMessage`
+  - `mount()` validează `status==='published'` (404 altfel) + setează datele implicite (azi+1 / azi+3)
+  - `#[Computed] nights()`, `subtotal()`, `total()` — calcul reactiv pe baza `base_price * nights + cleaning_fee`
+  - `save(BookingService $service)` validează formularul și apelează `BookingService::create($property->id, [...checkIn/checkOut, guests_count, status=pending, payment_status=pending, source=direct...])`; capturează `\RuntimeException` (suprapunere) și redirecționează la `bookings.show` în caz de succes
+  - UI: formular date + sidebar breakdown preț cu `data-testid="confirm-booking"` și banner eroare `data-testid="overbooking-error"`
+- ✅ **Componentă Volt `bookings.show`** (`resources/views/livewire/bookings/show.blade.php`):
+  - Acces restricționat: doar guest-ul rezervării sau host-ul proprietății (403 altfel)
+  - Afișează referință, status, proprietate, interval, defalcare preț (testid-uri `booking-reference`, `booking-status`, `booking-total`)
+- ✅ **Link „Rezervă"** adăugat în `properties.show` (testid `book-button`) către `route('properties.book', $property)`
+- ✅ **`BookingService`** reutilizat: `DB::transaction` + `Property::lockForUpdate` + overlap check pe statusurile [pending, confirmed, checked_in]
+- ✅ **`tests/Feature/PublicBookingFlowTest.php`** — 6 teste verzi:
+  - guest neautentificat → redirect login pe pagina de booking
+  - user autentificat poate vedea pagina de booking
+  - user autentificat poate crea o rezervare (3 nopți × 200 RON + 50 cleaning = 650 RON, status `pending`)
+  - rezervare suprapusă peste interval [pending/confirmed/checked_in] respinsă cu mesaj „suprapune"
+  - pagina `bookings.show` vizibilă guest-ului proprietar
+  - pagina `bookings.show` interzisă altui user (403)
+- ✅ **Lecție tehnică**: `source` din enum-ul `bookings` are valorile `direct/airbnb/booking/vrbo/ical/manual` (nu `web`). În plus, `\RuntimeException` capturat în `save()` este o categorie largă — `QueryException` și `ModelNotFoundException` extind tot `RuntimeException`. Pe viitor: introducere `OverbookingException` custom pentru a izola eroarea de suprapunere de erorile DB.
+- ✅ **Total teste cumulat: 74 verzi (200 assertions), durată ~199s**
+- 🟦 Următor (pas cu pas): Review/Rating submission flow, Host dashboard CRUD properties, Notificări email (booking confirmat/anulat) sau Stripe checkout (payment_intent + webhook) — la alegerea utilizatorului.
 
 ---
 

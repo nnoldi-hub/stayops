@@ -11,6 +11,12 @@ Route::get('/', function () {
 // Properties — public listing (Volt)
 Volt::route('/properties', 'properties.index')->name('properties.index');
 Volt::route('/properties/{property:slug}', 'properties.show')->name('properties.show');
+Volt::route('/properties/{property:slug}/book', 'properties.book')
+    ->middleware(['auth', 'verified'])
+    ->name('properties.book');
+Volt::route('/bookings/{booking:reference}', 'bookings.show')
+    ->middleware(['auth'])
+    ->name('bookings.show');
 
 Route::get('/dashboard', function () {
     return view('dashboard');

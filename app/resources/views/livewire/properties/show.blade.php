@@ -73,9 +73,9 @@ new #[Layout('components.layouts.public')] class extends Component {
                 <div class="text-xs text-gray-500 mt-3">
                     Check-in: {{ $property->check_in_time }} · Check-out: {{ $property->check_out_time }}
                 </div>
-                <button type="button" disabled class="mt-4 w-full bg-gray-900 text-white py-2 rounded-md text-sm opacity-75 cursor-not-allowed">
-                    Rezervă (UI urmează)
-                </button>
+                <a href="{{ route('properties.book', $property) }}" class="mt-4 w-full inline-block text-center bg-gray-900 text-white py-2 rounded-md text-sm hover:bg-gray-800" data-testid="book-button">
+                    Rezervă
+                </a>
             </div>
         </aside>
     </div>
