@@ -297,7 +297,12 @@ notifications  [Laravel native]
   - Total: **10 teste verzi, 47 assertions** rulează în ~63s pe DB testing
 - ✅ **CI ajustat**: workflow folosește `php artisan test` (PHPUnit) în loc de Pest CLI (Pest nu este instalat ca dep dedicat, runner-ul Laravel îl suportă oricum)
 - **Note**: Breeze Livewire amânat până la upgrade compatibil sau înlocuire cu volt-4. Factories încă nu sunt scrise (modele create manual în teste). Anti-overbooking cu DB lock urmează în Etapa 3.
-- 🟦 Următor: Filament resources (Host, Property, Booking, Task, Dispute, Plan, Amenity), redirect post-login per rol bazat pe middleware role, factories Eloquent pentru User/Host/Property/Booking, anti-overbooking cu `lockForUpdate` + test concurență, ERD diagram (Mermaid), 2FA Fortify pentru SuperAdmin/Host, apoi Etapa 2 (Properties + Search PostGIS).
+- ✅ **Filament resources generate** pentru 7 modele via `make:filament-resource ... --generate`:
+  - `Hosts/HostResource`, `Properties/PropertyResource`, `Bookings/BookingResource`, `Tasks/TaskResource`, `Disputes/DisputeResource`, `Plans/PlanResource`, `Amenities/AmenityResource`
+  - Form + Table schemas auto-derivate din coloanele DB (split classes Filament 5.x: `Schemas/*Form`, `Tables/*Table`, `Pages/{List,Create,Edit}*`)
+  - Configurate manual: `navigationLabel`, `modelLabel`, `pluralModelLabel` în RO, `navigationGroup` (Marketplace / Operațional / Configurare), `navigationSort`, `recordTitleAttribute` (reference / title / name_ro)
+  - Admin panel verificat HTTP 200 după `config:clear && view:clear && cache:clear`
+- 🟦 Următor (pas cu pas): (2) factories Eloquent pentru User/Host/Property/Booking + anti-overbooking cu `lockForUpdate` + test concurență, (3) redirect post-login per rol, (4) 2FA Fortify pentru SuperAdmin/Host, (5) ERD diagram (Mermaid), (6) Etapa 2 (Properties + Search PostGIS).
 
 ---
 
