@@ -1,0 +1,241 @@
+# MRHM — Jurnal de Progres Dezvoltare
+
+> Document de urmărire a dezvoltării platformei **Management Regim Hotelier & Mentenanță**.
+> Se actualizează la fiecare sesiune de lucru. Fiecare task are status: ⬜ to-do / 🟦 in-progress / ✅ done / ⚠️ blocked.
+
+---
+
+## 0. Decizii arhitecturale confirmate
+
+| Decizie | Alegere | Motiv |
+|---|---|---|
+| Backend framework | **Laravel 13.11** | Productivitate, ecosistem matur (latest stable) |
+| Frontend stack | **Livewire 3 + Alpine.js** | Monolitic, viteză de dev, fără SPA overhead |
+| Bază de date | **PostgreSQL 16 + PostGIS** | Geo queries, JSONB, performanță |
+| Cache & Queue | **Redis** + Laravel Horizon | Standard industrie |
+| Search | **PostgreSQL FTS** la MVP → **Meilisearch** post-lansare | Cost zero la start |
+| Plăți | **Stripe Connect** (split payments) | Comisioane platformă + payout direct la host |
+| Abonamente | **Laravel Cashier (Stripe)** | Integrare standard |
+| Admin panel | **Filament 3** | SuperAdmin rapid |
+| Storage | **DigitalOcean Spaces** (S3-compatible) | Cost mai mic decât AWS în EU |
+| Mail | **Mailgun** (tranzacțional) | Free tier generos |
+| SMS | **Twilio** + fallback WhatsApp Business | Pentru check-in codes |
+| Multi-tenancy | Single DB cu `host_id` discriminator | Simplitate operațională |
+| i18n | **RO + EN** de la început | Pregătire expansiune |
+| Mobile | **PWA** (nu nativ) | MVP rapid |
+| Deploy | **Laravel Forge** + DigitalOcean | Zero-downtime, SSL automat |
+| CI/CD | GitHub Actions (Pest + PHPStan L8 + Pint) | Calitate cod |
+| Locație proiect | `c:\n\MRHM\app\` | Separare cod / docs |
+| Dev environment | **Laravel Sail** (Docker-only) | User nu are PHP/Node/Composer local |
+| Runtime PHP image | **PHP 8.5** (Sail default) | Cel mai recent suportat de Laravel 13 |
+| Node runtime | **Node 24** (în imaginea Sail) | Vite + Tailwind |
+
+---
+
+## 1. Etape & Milestones
+
+### 🟦 Etapa 0 — Pre-development & Setup
+- [x] ✅ Inițializare proiect **Laravel 13.11.2** în `app/` (via container `laravelsail/php83-composer`)
+- [x] ✅ Configurare PostgreSQL 16 + **PostGIS 3.4** local (Docker — image `postgis/postgis:16-3.4-alpine`)
+- [x] ✅ Redis 7 local (Docker)
+- [x] ✅ Mailpit local (Docker — SMTP test 1025, UI 8025)
+- [x] ✅ `.env` configurat (APP_NAME=MRHM, locale=ro, fallback=en, DB+Redis pe servicii Docker)
+- [x] ✅ `compose.yaml` Sail v1.60 + swap PostGIS
+- [x] ✅ Permissions fix pentru `storage/` și `bootstrap/cache/` (chown sail:sail)
+- [x] ✅ `APP_KEY` generat
+- [x] ✅ Migrațiile default Laravel rulate (users, cache, jobs)
+- [x] ✅ Extensia PostGIS activată în DB `mrhm`
+- [x] ✅ HTTP smoke test: `GET http://localhost → 200 OK`
+- [ ] Git init + `.gitignore` + first commit
+- [ ] Instalare pachete core: `filament`, `livewire`, `spatie/laravel-permission`, `spatie/laravel-medialibrary`, `cashier-stripe`, `owen-it/laravel-auditing`
+- [ ] Configurare Pest + PHPStan + Pint
+- [ ] GitHub Actions workflow CI
+- [ ] ERD complet (diagramă)
+
+### ⬜ Etapa 1 — Fundație (Auth + RBAC + Migrații)
+- [ ] Migrații complete (toate tabelele — vezi §3)
+- [ ] Seederi de bază (roluri, permisiuni, amenities)
+- [ ] Models + relații + factories
+- [ ] Auth (Laravel Breeze cu Livewire)
+- [ ] 4 roluri + middleware: `SuperAdmin`, `Host`, `Provider`, `Guest`
+- [ ] Rute per rol cu redirect post-login
+- [ ] Audit log global activat
+- [ ] 2FA pentru SuperAdmin & Host (laravel/fortify)
+- [ ] i18n setup (`lang/ro/`, `lang/en/`)
+
+### ⬜ Etapa 2 — Properties + Search
+- [ ] CRUD Properties (Host dashboard Livewire)
+- [ ] Upload galerie (MediaLibrary + Spaces)
+- [ ] Amenities (many-to-many)
+- [ ] Search geo (PostGIS `ST_DWithin`) cu index GIST
+- [ ] Filtre: dată, oaspeți, preț, rating
+- [ ] Pagina publică proprietate + Google Maps embed
+- [ ] Recenzii (model + UI)
+
+### ⬜ Etapa 3 — Booking Engine ⚠️ CRITIC
+- [ ] State machine booking (`pending → confirmed → checked_in → checked_out → cancelled / refunded`)
+- [ ] Algoritm anti-overbooking (DB lock `FOR UPDATE` + buffer 1h)
+- [ ] iCal import (parser + cron 5 min)
+- [ ] iCal export (feed `.ics` per property)
+- [ ] Flow rezervare guest (search → select → checkout)
+- [ ] Reconciliere periodică cu surse externe
+- [ ] **Pest tests** pentru concurență (obligatoriu)
+
+### ⬜ Etapa 4 — Plăți (Stripe Connect)
+- [ ] Onboarding host ca Connected Account
+- [ ] Checkout cu `application_fee` (comision platformă)
+- [ ] Webhooks: `payment_intent.*`, `account.updated`, `payout.paid`, `charge.refunded`
+- [ ] Refund flow
+- [ ] Facturi PDF (DomPDF)
+- [ ] Subscription pentru hosts (Cashier — plan Basic/Premium)
+
+### ⬜ Etapa 5 — Mentenanță
+- [ ] Tasks engine + event `BookingCheckedOut → CreateCleaningTask`
+- [ ] Reguli de auto-asignare (host → provider preferat)
+- [ ] Provider dashboard (Livewire)
+- [ ] Proof of work (before/after photos)
+- [ ] Sub-roluri în firmă (team members)
+- [ ] Raport lunar provider → host (PDF)
+
+### ⬜ Etapa 6 — SuperAdmin (Filament)
+- [ ] Resources pentru toate entitățile
+- [ ] User Impersonation + audit log
+- [ ] KYC approval workflow (CUI / CI upload)
+- [ ] Dispute management
+- [ ] Plans configurator
+- [ ] Dashboard: MRR, Churn, GMV, bookings
+- [ ] Alertă "host inactiv > 7 zile"
+
+### ⬜ Etapa 7 — Notificări, Hardening, Lansare
+- [ ] Mailgun integration + templates
+- [ ] Twilio SMS (check-in codes)
+- [ ] WhatsApp Business fallback
+- [ ] Rate limiting + throttling
+- [ ] Cloudflare WAF
+- [ ] Backup automat DB (zilnic) + S3 lifecycle
+- [ ] Forge deploy + zero-downtime
+- [ ] Horizon monitoring
+- [ ] PWA manifest + service worker
+- [ ] Launch checklist (smoke tests pe production)
+
+---
+
+## 2. Stack tehnic complet
+
+```
+PHP 8.3
+Laravel 11.x
+Livewire 3.x
+Filament 3.x
+PostgreSQL 16 + PostGIS 3.4
+Redis 7
+Node 20 (Vite + TailwindCSS 3)
+```
+
+**Pachete Composer principale:**
+- `filament/filament` — admin panel
+- `livewire/livewire` — UI reactive
+- `spatie/laravel-permission` — RBAC
+- `spatie/laravel-medialibrary` — uploads
+- `laravel/cashier` — subscriptions Stripe
+- `stripe/stripe-php` — Connect API
+- `owen-it/laravel-auditing` — audit log
+- `laravel/horizon` — queue monitor
+- `laravel/fortify` — 2FA
+- `spatie/laravel-backup` — DB backups
+- `stechstudio/filament-impersonate`
+- `mpociot/laravel-apidoc` (opțional, dacă expunem API)
+
+**Dev tools:**
+- `pestphp/pest` + `pestphp/pest-plugin-laravel`
+- `larastan/larastan` (PHPStan L8)
+- `laravel/pint`
+- `barryvdh/laravel-debugbar` (dev only)
+
+---
+
+## 3. Schema bazei de date (entități)
+
+```
+users (id, email, password, phone, locale, 2fa_secret, ...)
+roles, permissions, role_user, permission_role  [spatie]
+audit_logs                                        [owen-it]
+impersonation_logs (admin_id, target_id, started_at, ended_at, reason)
+
+hosts (user_id, company_name, cui, kyc_status, kyc_documents, stripe_account_id)
+providers (user_id, company_name, cui, kyc_status, service_types[])
+teams (provider_id, name)
+team_members (team_id, user_id, role)
+
+properties (id, host_id, slug, title, description, address, city, country,
+            location POINT, base_price, currency, max_guests, bedrooms,
+            check_in_time, check_out_time, status, ...)
+property_media [polymorphic via MediaLibrary]
+amenities (id, slug, icon)
+property_amenities (property_id, amenity_id)
+property_pricing_rules (property_id, type, dates, price_modifier)
+
+bookings (id, property_id, guest_id, check_in, check_out, guests_count,
+          total_price, platform_fee, host_payout, currency,
+          status, source [direct|airbnb|booking], external_id,
+          stripe_payment_intent_id, created_at, ...)
+booking_state_transitions (booking_id, from, to, actor_id, at, reason)
+
+ical_feeds (id, property_id, direction [in|out], url, last_sync_at, last_error)
+ical_events (id, feed_id, uid, start, end, summary, raw)
+
+tasks (id, property_id, booking_id, type [cleaning|repair|inspection],
+       provider_id, assigned_to_user_id, status, priority,
+       scheduled_at, completed_at, cost, notes)
+task_media [polymorphic — before/after photos]
+
+reviews (id, booking_id, author_id, target_type, target_id, rating, comment)
+
+plans (id, slug, name, price, interval, features JSONB, stripe_price_id)
+subscriptions, subscription_items  [Cashier]
+
+commissions (id, booking_id, amount, percentage, status)
+payouts (id, host_id, stripe_transfer_id, amount, status)
+
+disputes (id, booking_id|task_id, opener_id, status, resolution)
+dispute_messages (dispute_id, sender_id, body, attachments)
+
+notifications  [Laravel native]
+```
+
+---
+
+## 4. Jurnal de sesiuni
+
+### Sesiune 2026-05-26 — Kickoff
+- ✅ Analiză plan inițial
+- ✅ Decizii arhitecturale confirmate
+- ✅ Document de progres creat
+- ✅ **Etapa 0 — Docker stack operațional**:
+  - Proiect Laravel 13.11.2 bootstrap via `laravelsail/php83-composer`
+  - Sail 1.60 + `compose.yaml` cu pgsql/redis/mailpit
+  - Swap imagine PostgreSQL → `postgis/postgis:16-3.4-alpine`
+  - 4 containere `Up`: `app-laravel.test-1`, `app-pgsql-1`, `app-redis-1`, `app-mailpit-1`
+  - `.env` ajustat (MRHM, locale ro/en, Redis pentru session/cache/queue, `WWWUSER`/`WWWGROUP=1000`)
+  - Permissions `storage/` + `bootstrap/cache/` reparate (chown `sail:sail`)
+  - `APP_KEY` generat, migrațiile default rulate (3 tabele Laravel default)
+  - Extensia `postgis` activată în DB `mrhm` → versiune 3.4 verificată
+  - HTTP smoke test: `GET http://localhost` → **200 OK** (70.4 KB welcome page)
+- **Notă perf**: Bind mount Windows este lent (~14s/request pentru welcome page). De rezolvat ulterior cu volum named pentru `vendor/` sau migrare în WSL2.
+- **Servicii UI accesibile**:
+  - App: http://localhost
+  - Mailpit (mail UI): http://localhost:8025
+  - PostgreSQL: `localhost:5432` (user `mrhm` / db `mrhm` / pass `secret`)
+- 🟦 Următor: Git init + instalare pachete core (Etapa 0 → finalizare) și apoi Etapa 1.
+
+---
+
+## 5. Backlog / idei post-MVP
+- API publică REST pentru integrări terțe
+- App nativă (Capacitor peste PWA)
+- Smart lock integration (Nuki, TTLock)
+- Dynamic pricing AI (sugestii de preț pe baza ocupării)
+- e-Factura ANAF integration
+- Multi-currency display + FX rates
+- Loyalty program guests
+- Channel manager extins (Vrbo, Expedia)
