@@ -2,10 +2,15 @@
 
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
+use Livewire\Volt\Volt;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+// Properties — public listing (Volt)
+Volt::route('/properties', 'properties.index')->name('properties.index');
+Volt::route('/properties/{property:slug}', 'properties.show')->name('properties.show');
 
 Route::get('/dashboard', function () {
     return view('dashboard');

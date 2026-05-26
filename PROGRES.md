@@ -507,6 +507,16 @@ erDiagram
 - ✅ **Total teste cumulat: 54 verzi (146 assertions), durată ~86s**
 - 🟦 Următor (pas cu pas): (6a.2) Livewire + Volt + Property index/show public; (6a.3) Host-facing Property edit page cu upload foto; apoi (6b) Search PostGIS `ST_DWithin` + filtre amenities.
 
+### Sesiune — Etapa 2 (6a.2): Public Property pages (Volt)
+- ✅ **Volt 1.10** instalat (`composer require livewire/volt` + `volt:install`); `VoltServiceProvider` înregistrat, mount path `resources/views/livewire`
+- ✅ **Layout public** `resources/views/components/layouts/public.blade.php` (header cu logo + nav: Proprietăți / Login / Înregistrare / Dashboard)
+- ✅ **`/properties`** (Volt `properties.index`) — listă paginată (12/pag.), filtre live: search (titlu/descriere ILIKE), city, property_type, minGuests; doar `status = published`
+- ✅ **`/properties/{property:slug}`** (Volt `properties.show`) — galerie foto (`getMedia('photos')` cu conversia `medium`), descriere, specs (oaspeți/dormitoare/paturi/băi), listă dotări, sidebar preț + taxă curățenie; 404 pentru draft
+- ✅ Layout aplicat via `#[Layout('components.layouts.public')]`; root element unic `<div>` în template (cerință Livewire)
+- ✅ **`tests/Feature/PropertyPublicPagesTest.php`** — 6 teste verzi: acces public index, excludere draft din index, filtrare după city, filtrare după property_type (via `Volt::test()`), acces public show, 404 pe draft
+- ✅ **Total teste cumulat: 60 verzi (160 assertions), durată ~108s**
+- 🟦 Următor (pas cu pas): (6a.3) Host Property edit page cu upload foto (Livewire `WithFileUploads` sau Filament Resource cu SpatieMediaLibraryFileUpload); apoi (6b) Search PostGIS `ST_DWithin` + filtre amenities.
+
 ---
 
 ## 5. Backlog / idei post-MVP
