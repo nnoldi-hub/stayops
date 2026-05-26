@@ -46,9 +46,16 @@
 - [x] ✅ Migrațiile default Laravel rulate (users, cache, jobs)
 - [x] ✅ Extensia PostGIS activată în DB `mrhm`
 - [x] ✅ HTTP smoke test: `GET http://localhost → 200 OK`
-- [ ] Git init + `.gitignore` + first commit
-- [ ] Instalare pachete core: `filament`, `livewire`, `spatie/laravel-permission`, `spatie/laravel-medialibrary`, `cashier-stripe`, `owen-it/laravel-auditing`
-- [ ] Configurare Pest + PHPStan + Pint
+- [x] ✅ Git init + `.gitignore` + first commit (`6b2bc71`)
+- [x] ✅ Instalare pachete core: **Filament 5.6.5**, **spatie/laravel-permission 7.4.1**, **spatie/laravel-medialibrary 11.22.1**, **laravel/cashier 16.5.3**, **owen-it/laravel-auditing 14.0.3**, **laravel/fortify 1.37.2**, **laravel/horizon 5.47.0**, **spatie/laravel-backup 10.2.1**, **stripe/stripe-php 17.6.0** (115 pachete total)
+- [x] ✅ Dev tools: **larastan/larastan 3.9**, **barryvdh/laravel-ide-helper 3.7**
+- [x] ✅ `phpstan.neon` configurat (level 6, paths app/config/database/routes)
+- [x] ✅ Publicare migrații pachete: media, cashier (subscriptions, customer cols, passkeys, 2FA cols), audits, permissions
+- [x] ✅ Migrate rulat — toate tabelele create în DB
+- [x] ✅ Filament admin panel instalat (`/admin/login` → 200 OK), `AdminPanelProvider` generat
+- [x] ✅ Horizon installed (provider + config)
+- [x] ✅ Fortify config + Actions publicate
+- [ ] Configurare Pest + Pint (pint deja inclus în Laravel 13)
 - [ ] GitHub Actions workflow CI
 - [ ] ERD complet (diagramă)
 
@@ -227,6 +234,21 @@ notifications  [Laravel native]
   - Mailpit (mail UI): http://localhost:8025
   - PostgreSQL: `localhost:5432` (user `mrhm` / db `mrhm` / pass `secret`)
 - 🟦 Următor: Git init + instalare pachete core (Etapa 0 → finalizare) și apoi Etapa 1.
+
+### Sesiune 2026-05-26 (continuare) — Etapa 0 finalizată
+- ✅ **Git init** + `.gitignore` + commit `6b2bc71` ("Initial commit: MRHM Laravel 13 + Docker stack (Etapa 0)")
+- ✅ **Pachete core instalate** (9 directe + 106 tranzitive = 115 total):
+  - Filament 5.6.5 (admin panel)
+  - Spatie: laravel-permission 7.4.1, laravel-medialibrary 11.22.1, laravel-backup 10.2.1
+  - Laravel: cashier 16.5.3, fortify 1.37.2, horizon 5.47.0
+  - owen-it/laravel-auditing 14.0.3, stripe/stripe-php 17.6.0
+- ✅ **Dev tools**: larastan/larastan 3.9, barryvdh/laravel-ide-helper 3.7
+- ✅ **`phpstan.neon`** creat (level 6, paths app/config/database/routes)
+- ✅ **Vendor publish & migrate**: media_table, Cashier (subscriptions, subscription_items, customer columns, meter cols, passkeys, 2FA columns), audits, permission_tables — toate migrate cu succes
+- ✅ **Filament admin panel** instalat — `AdminPanelProvider` la `app/Providers/Filament/`, rute `/admin`, `/admin/login`, `/admin/logout` → HTTP **200 OK** pe `/admin/login`
+- ✅ **Horizon** (provider + config) + **Fortify** (config + Actions) publicate
+- **Notă debugging**: Composer install pe bind-mount Windows este lent (~5-10 min per pachet din cauza unzip-ului). Workaround: `COMPOSER_PROCESS_TIMEOUT=0`. Permisiunile pentru fișiere noi trebuie reaplicate după fiecare composer require: `chown -R sail:sail storage bootstrap/cache database config app routes lang`.
+- 🟦 Următor: Pest setup, user admin Filament, GitHub Actions CI, ERD, apoi Etapa 1 (migrații complete pentru cele ~25 entități, modele + factories, Breeze Livewire, RBAC cu 4 roluri).
 
 ---
 
