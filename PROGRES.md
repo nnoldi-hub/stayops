@@ -530,6 +530,20 @@ erDiagram
 - ✅ **Total teste cumulat: 64 verzi (175 assertions), durată ~166s**
 - 🟦 Următor (pas cu pas): (6b) Search PostGIS `ST_DWithin` + filtre amenities pe `/properties`.
 
+### Sesiune — Etapa 2 (6b): Search PostGIS + filtre amenities
+- ✅ **`/properties` (Volt `properties.index`)** — adăugate proprietăți reactive: `lat`, `lng`, `radiusKm`, `amenities[]`
+- ✅ **Filtru geografic** `ST_DWithin(location, ST_SetSRID(ST_MakePoint(lng,lat), 4326)::geography, radius_metri)` via `whereRaw`; folosește indexul GIST existent pe `properties.location`
+- ✅ **Filtru amenities** — checkbox per `Amenity`; `whereHas` per ID în buclă → semantică AND (proprietatea trebuie să aibă **toate** dotările bifate)
+- ✅ **UI** — al doilea rând de filtre (lat/lng/rază km) + secțiune cu checkbox-uri din `Amenity::all()` sortate după `sort_order`, `name_ro`; reset paginare la schimbare filtru
+- ✅ **`tests/Feature/PropertyGeoSearchTest.php`** — 4 teste verzi:
+  - rază mică (50 km, București centru) include proprietatea din Centru, exclude pe cea din Cluj
+  - rază mare (500 km) include ambele
+  - filtru pe o singură dotare (`wifi`) — exclude proprietatea fără ea
+  - filtru pe două dotări (`wifi` + `parking`) — doar proprietatea care le are pe ambele (AND)
+- ✅ Setup test: `DB::statement` cu `ST_SetSRID(ST_MakePoint(?,?), 4326)::geography` pentru a popula `location`
+- ✅ **Total teste cumulat: 68 verzi (183 assertions), durată ~137s**
+- 🟦 Următor (pas cu pas): Booking flow public (calendar disponibilitate + checkout) sau alte priorități la alegerea utilizatorului.
+
 ---
 
 ## 5. Backlog / idei post-MVP

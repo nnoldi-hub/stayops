@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Amenity;
 use App\Models\Property;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -13,10 +14,15 @@ new #[Layout('components.layouts.public')] #[Title('Proprietăți disponibile')]
     public ?string $city = null;
     public ?string $propertyType = null;
     public ?int $minGuests = null;
+    public ?float $lat = null;
+    public ?float $lng = null;
+    public ?float $radiusKm = null;
+    /** @var array<int,int> */
+    public array $amenities = [];
 
     public function updating(string $name): void
     {
-        if (in_array($name, ['search', 'city', 'propertyType', 'minGuests'], true)) {
+        if (in_array($name, ['search', 'city', 'propertyType', 'minGuests', 'lat', 'lng', 'radiusKm', 'amenities'], true)) {
             $this->resetPage();
         }
     }
@@ -32,11 +38,25 @@ new #[Layout('components.layouts.public')] #[Title('Proprietăți disponibile')]
             ->when($this->city, fn ($q, $c) => $q->where('city', 'ilike', "%{$c}%"))
             ->when($this->propertyType, fn ($q, $t) => $q->where('property_type', $t))
             ->when($this->minGuests, fn ($q, $g) => $q->where('max_guests', '>=', $g))
+            ->when(
+                $this->lat !== null && $this->lng !== null && $this->radiusKm !== null && $this->radiusKm > 0,
+                fn ($q) => $q->whereRaw(
+                    'ST_DWithin(location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
+                    [(float) $this->lng, (float) $this->lat, (float) $this->radiusKm * 1000]
+                )
+            )
+            ->when(! empty($this->amenities), function ($q) {
+                $ids = array_map('intval', $this->amenities);
+                foreach ($ids as $id) {
+                    $q->whereHas('amenities', fn ($qq) => $qq->where('amenities.id', $id));
+                }
+            })
             ->orderByDesc('rating_avg')
             ->orderByDesc('id');
 
         return [
             'properties' => $query->paginate(12),
+            'allAmenities' => Amenity::query()->orderBy('sort_order')->orderBy('name_ro')->get(),
         ];
     }
 }; ?>
@@ -75,6 +95,46 @@ new #[Layout('components.layouts.public')] #[Title('Proprietăți disponibile')]
             class="border-gray-300 rounded-md text-sm"
         />
     </div>
+
+    <div class="bg-white rounded-lg shadow-sm p-4 mb-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <input
+            type="number"
+            step="0.000001"
+            wire:model.live.debounce.500ms="lat"
+            placeholder="Latitudine (ex. 44.4268)"
+            class="border-gray-300 rounded-md text-sm"
+        />
+        <input
+            type="number"
+            step="0.000001"
+            wire:model.live.debounce.500ms="lng"
+            placeholder="Longitudine (ex. 26.1025)"
+            class="border-gray-300 rounded-md text-sm"
+        />
+        <input
+            type="number"
+            step="0.1"
+            min="0"
+            wire:model.live.debounce.500ms="radiusKm"
+            placeholder="Rază (km)"
+            class="border-gray-300 rounded-md text-sm"
+        />
+        <div class="text-xs text-gray-500 self-center">Caută într-o rază geografică (PostGIS).</div>
+    </div>
+
+    @if ($allAmenities->isNotEmpty())
+        <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+            <div class="text-xs uppercase text-gray-500 mb-2">Dotări</div>
+            <div class="flex flex-wrap gap-3">
+                @foreach ($allAmenities as $a)
+                    <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                        <input type="checkbox" wire:model.live="amenities" value="{{ $a->id }}" class="rounded border-gray-300" />
+                        {{ $a->name_ro ?? $a->name_en ?? $a->slug }}
+                    </label>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     @if ($properties->isEmpty())
         <div class="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500" data-testid="empty-state">
