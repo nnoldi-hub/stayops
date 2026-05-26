@@ -498,7 +498,14 @@ erDiagram
 - ✅ **`tests/Feature/TwoFactorAuthenticationTest.php`** — 7 teste verzi (trait, coloane, redirect SuperAdmin/Host, Provider nu necesită 2FA, accesibil cu 2FA confirmat, no-loop pe setup)
 - ✅ **Total teste cumulat: 50 verzi (136 assertions), durată ~79s**
 - ✅ **ERD diagram Mermaid** adăugat în secțiunea 3.1 (entități domeniu + relațiile lor: USERS, HOSTS, PROVIDERS, PROPERTIES, BOOKINGS, BOOKING_STATE_TRANSITIONS, TASKS, DISPUTES, COMMISSIONS, PAYOUTS, PLANS, AMENITIES, PASSKEYS, ROLES/PERMISSIONS)
-- 🟦 Următor (pas cu pas): (6) Etapa 2 (Properties + Search PostGIS). TODO ulterior: UI completă self-service 2FA setup (QR + recovery codes), CI/CD lint (Pint/PHPStan).
+
+### Sesiune — Etapa 2 (6a.1): Property MediaLibrary integration
+- ✅ **`Property` model** — `implements HasMedia` + `use InteractsWithMedia` (Spatie MediaLibrary 11)
+  - Colecții: `photos` (multi-file, disk `public`, mime: jpeg/png/webp) și `floor_plans` (single-file, mime: jpeg/png/webp/pdf)
+  - Conversii: `thumb` (Crop 400×300) + `medium` (Contain 1200×900), nonQueued
+- ✅ **`tests/Feature/PropertyMediaTest.php`** — 4 teste verzi: atașare foto la colecția `photos`, multi-photo, single-file pe `floor_plans` (înlocuire), URL generation
+- ✅ **Total teste cumulat: 54 verzi (146 assertions), durată ~86s**
+- 🟦 Următor (pas cu pas): (6a.2) Livewire + Volt + Property index/show public; (6a.3) Host-facing Property edit page cu upload foto; apoi (6b) Search PostGIS `ST_DWithin` + filtre amenities.
 
 ---
 

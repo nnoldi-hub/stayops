@@ -11,10 +11,14 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
+use Spatie\Image\Enums\Fit;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-class Property extends Model implements Auditable
+class Property extends Model implements Auditable, HasMedia
 {
-    use AuditableTrait, HasFactory, SoftDeletes;
+    use AuditableTrait, HasFactory, InteractsWithMedia, SoftDeletes;
 
     protected $fillable = [
         'host_id', 'slug', 'title', 'description', 'property_type',
@@ -64,5 +68,28 @@ class Property extends Model implements Auditable
     public function reviews(): MorphMany
     {
         return $this->morphMany(Review::class, 'target');
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('photos')
+            ->useDisk('public')
+            ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp']);
+
+        $this->addMediaCollection('floor_plans')
+            ->useDisk('public')
+            ->singleFile()
+            ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+    }
+
+    public function registerMediaConversions(?Media $media = null): void
+    {
+        $this->addMediaConversion('thumb')
+            ->fit(Fit::Crop, 400, 300)
+            ->nonQueued();
+
+        $this->addMediaConversion('medium')
+            ->fit(Fit::Contain, 1200, 900)
+            ->nonQueued();
     }
 }
