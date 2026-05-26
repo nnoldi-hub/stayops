@@ -570,6 +570,25 @@ erDiagram
 - ✅ **Total teste cumulat: 74 verzi (200 assertions), durată ~199s**
 - 🟦 Următor (pas cu pas): Review/Rating submission flow, Host dashboard CRUD properties, Notificări email (booking confirmat/anulat) sau Stripe checkout (payment_intent + webhook) — la alegerea utilizatorului.
 
+### Sesiune — Etapa 2 (Review/Rating submission flow): /bookings/{ref}/review
+- ✅ **Rută** (`routes/web.php`): `Volt::route('/bookings/{booking:reference}/review', 'bookings.review')->middleware(['auth','verified'])->name('bookings.review')`
+- ✅ **Componentă Volt `bookings.review`** (`resources/views/livewire/bookings/review.blade.php`):
+  - Props: `Booking $booking`, `rating=5`, `cleanliness/communication/accuracy/value` (nullable 1–5), `comment`
+  - `mount()` aplică triplu gate: 403 dacă user-ul nu e guest-ul rezervării, 403 dacă booking-ul nu e `checked_out`, 403 dacă există deja un Review pentru `(booking_id, author_id)`
+  - `save()` validează (rating 1–5 required, sub-rating-uri 1–5 nullable, comment ≤2000) și într-un `DB::transaction`: creează `Review` (polymorphic target = `Property`, `is_published=true`), recalculează agregatul `Review::avg(rating)+count` filtrat pe `is_published` și actualizează `properties.reviews_count` + `properties.rating_avg` (rotunjit la 2 zecimale)
+  - Redirecționează la `bookings.show` după trimitere
+- ✅ **Bookings.show extins**: `#[Computed] canReview()` returnează true doar pentru guest, status `checked_out`, fără review existent → afișează CTA `data-testid="leave-review-link"` „Lasă un review"
+- ✅ **`tests/Feature/ReviewSubmissionFlowTest.php`** — 7 teste verzi:
+  - guest neautentificat → redirect login pentru pagina de review
+  - alt user (non-guest) → 403
+  - booking în starea `pending` → 403 (nu poate review)
+  - guest trimite review valid (5/4/5/4/5 + comentariu) → Review creat, `properties.reviews_count=1`, `properties.rating_avg=5.00`
+  - duplicate review pentru același `(booking_id, author_id)` → 403
+  - validare rating peste 5 → `assertHasErrors(['rating'])`, niciun Review în DB
+  - CTA „Lasă un review" apare pe `bookings.show` după checkout
+- ✅ **Total teste cumulat: 81 verzi (220 assertions), durată ~336s**
+- 🟦 Următor (pas cu pas): Host dashboard CRUD properties, Notificări email (booking confirmat/anulat), Stripe checkout (payment_intent + webhook) sau alte priorități — la alegerea utilizatorului.
+
 ---
 
 ## 5. Backlog / idei post-MVP

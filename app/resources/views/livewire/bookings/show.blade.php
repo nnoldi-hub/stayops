@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Booking;
+use App\Models\Review;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
@@ -22,6 +24,22 @@ new #[Layout('components.layouts.public')] #[Title('Rezervare confirmată')] cla
 
         $booking->load('property');
         $this->booking = $booking;
+    }
+
+    #[Computed]
+    public function canReview(): bool
+    {
+        $user = auth()->user();
+        if (! $user || $this->booking->guest_id !== $user->id) {
+            return false;
+        }
+        if ($this->booking->status !== 'checked_out') {
+            return false;
+        }
+        return ! Review::query()
+            ->where('booking_id', $this->booking->id)
+            ->where('author_id', $user->id)
+            ->exists();
     }
 }; ?>
 
@@ -75,6 +93,11 @@ new #[Layout('components.layouts.public')] #[Title('Rezervare confirmată')] cla
         <div class="mt-6 flex gap-3">
             <a href="{{ route('properties.index') }}" class="text-sm text-gray-700 underline">Înapoi la căutare</a>
             <a href="{{ route('dashboard') }}" class="text-sm text-gray-700 underline">Spre dashboard</a>
+            @if ($this->canReview)
+                <a href="{{ route('bookings.review', $booking) }}"
+                   class="ml-auto bg-indigo-600 text-white text-sm font-semibold px-3 py-1.5 rounded hover:bg-indigo-700"
+                   data-testid="leave-review-link">Lasă un review</a>
+            @endif
         </div>
     </div>
 </div>

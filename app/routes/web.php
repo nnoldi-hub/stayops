@@ -17,6 +17,9 @@ Volt::route('/properties/{property:slug}/book', 'properties.book')
 Volt::route('/bookings/{booking:reference}', 'bookings.show')
     ->middleware(['auth'])
     ->name('bookings.show');
+Volt::route('/bookings/{booking:reference}/review', 'bookings.review')
+    ->middleware(['auth', 'verified'])
+    ->name('bookings.review');
 
 Route::get('/dashboard', function () {
     return view('dashboard');
