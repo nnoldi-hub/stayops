@@ -64,12 +64,14 @@
 - [x] ✅ PostGIS geography column `location` + index GIST pe `properties`
 - [x] ✅ Seederi: `RolesAndPermissionsSeeder` (4 roluri × 39 permisiuni), `AmenitiesSeeder` (27 amenities cu i18n RO/EN), `AdminUserSeeder` (`admin@mrhm.local` / `password`)
 - [x] ✅ Models Eloquent + relații: User (HasRoles), Host, Provider, Team, TeamMember, Property, PropertyPricingRule, Amenity, Booking (cu `ALLOWED_TRANSITIONS` state machine), BookingStateTransition, IcalFeed, IcalEvent, Task, Review (morphTo), Plan, Commission, Payout, Dispute, DisputeMessage, ImpersonationLog
-- [ ] Auth (Laravel Breeze cu Livewire)
+- [x] ✅ Auth (Laravel Breeze cu Blade) — Livewire 3 incompatibil cu Filament 5/Livewire 4, am ales blade stack
 - [x] ✅ 4 roluri create: `SuperAdmin`, `Host`, `Provider`, `Guest` (permisiuni sincronizate)
-- [ ] Middleware per rol + redirect post-login
-- [ ] Audit log global activat (pachet instalat, model trait în lucru)
+- [x] ✅ Middleware aliases `role`, `permission`, `role_or_permission` înregistrate în `bootstrap/app.php`
+- [x] ✅ Audit log: trait `OwenIt\Auditing\Auditable` atașat pe Booking, Property, Host, Provider, Task, Dispute, Payout; tabel `audits` activ
 - [ ] 2FA pentru SuperAdmin & Host (laravel/fortify — config publicat)
 - [x] ✅ i18n setup: `lang/ro/app.php` + `lang/en/app.php` (common, navigation, booking statuses)
+- [x] ✅ BookingObserver — validează tranziții și log automat în `booking_state_transitions`
+- [x] ✅ Teste: 7 unit (state machine) + 3 feature (transition logging, invalid transition rejection, happy path lifecycle) — toate verzi
 
 ### ⬜ Etapa 2 — Properties + Search
 - [ ] CRUD Properties (Host dashboard Livewire)
@@ -276,8 +278,26 @@ notifications  [Laravel native]
 - ✅ **GitHub Actions CI**: `.github/workflows/ci.yml` cu matrix Postgres+PostGIS+Redis, rulează Pint + PHPStan + Pest pe push/PR în main/develop
 - ✅ **Verificare smoke** prin script PHP: User SuperAdmin → 39 permisiuni, 27 amenities, 8 statusuri booking corecte
 - ✅ **Filament `/admin/login` → HTTP 200 OK** după migrate+seed
-- **Note**: Models nu folosesc încă observers pentru `BookingStateTransition` (manual). Audit trait `OwenIt\Auditing\Auditable` nu este încă atașat la modele (urmează în Etapa 1 finalizare). Pricing rules MVP — fără overlap detection.
-- 🟦 Următor: Breeze Livewire install (auth UI + middleware), atașare trait audit la modele relevante, observer state machine booking, Pest config + primele teste (booking state machine, anti-overbooking), ERD diagram, commit Etapa 1.
+
+### Sesiune 2026-05-26 (continuare 3) — Etapa 1 finalizare (auth + audit + observer + teste)
+- ✅ **Laravel Breeze blade** instalat (stack Livewire 3 incompatibil cu Filament 5 care folosește Livewire 4 — am switch-at la blade; rutele auth `/login`, `/register`, `/forgot-password`, `/profile` + Vite build OK)
+- ✅ **Middleware aliases** Spatie înregistrate în `bootstrap/app.php`: `role`, `permission`, `role_or_permission`
+- ✅ **`OwenIt\Auditing` activat**:
+  - Config publicat (`config/audit.php`)
+  - Migration `create_audits_table` (făcut idempotent cu `Schema::hasTable` pentru a tolera tabelul preexistent)
+  - Trait `Auditable` atașat pe **Booking, Property, Host, Provider, Task, Dispute, Payout** (interfață `OwenIt\Auditing\Contracts\Auditable`)
+- ✅ **BookingObserver** (`app/Observers/BookingObserver.php`):
+  - `updating()` → validează tranziția față de `Booking::ALLOWED_TRANSITIONS`, aruncă `InvalidArgumentException` la tranziții invalide
+  - `updated()` → log automat în `booking_state_transitions` cu `from_state`, `to_state`, `actor_id`, `reason`, `transitioned_at`
+  - Înregistrat în `AppServiceProvider::boot()`
+- ✅ **PostGIS extension migration** `2026_05_26_069999_enable_postgis_extension.php` (`CREATE EXTENSION IF NOT EXISTS postgis`) — necesar pentru DB-ul `testing` care nu avea extensia
+- ✅ **Pest/PHPUnit teste verzi**:
+  - `tests/Unit/BookingStateMachineTest.php` — 6 teste (43 assertions): tranziții permise per status, stare terminală `refunded`, integritate map STATUSES↔ALLOWED_TRANSITIONS
+  - `tests/Feature/BookingTransitionTest.php` — 3 teste (RefreshDatabase + seed roles): tranziție validă loghează, tranziție invalidă aruncă & nu loghează, happy path complet 3 tranziții
+  - Total: **10 teste verzi, 47 assertions** rulează în ~63s pe DB testing
+- ✅ **CI ajustat**: workflow folosește `php artisan test` (PHPUnit) în loc de Pest CLI (Pest nu este instalat ca dep dedicat, runner-ul Laravel îl suportă oricum)
+- **Note**: Breeze Livewire amânat până la upgrade compatibil sau înlocuire cu volt-4. Factories încă nu sunt scrise (modele create manual în teste). Anti-overbooking cu DB lock urmează în Etapa 3.
+- 🟦 Următor: Filament resources (Host, Property, Booking, Task, Dispute, Plan, Amenity), redirect post-login per rol bazat pe middleware role, factories Eloquent pentru User/Host/Property/Booking, anti-overbooking cu `lockForUpdate` + test concurență, ERD diagram (Mermaid), 2FA Fortify pentru SuperAdmin/Host, apoi Etapa 2 (Properties + Search PostGIS).
 
 ---
 

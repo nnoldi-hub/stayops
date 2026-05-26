@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Booking extends Model
+class Booking extends Model implements Auditable
 {
-    use HasFactory;
+    use AuditableTrait, HasFactory;
 
     public const STATUSES = [
         'pending', 'confirmed', 'checked_in', 'checked_out',

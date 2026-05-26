@@ -86,6 +86,6 @@ jobs:
         working-directory: app
         run: ./vendor/bin/phpstan analyse --no-progress --memory-limit=2G
 
-      - name: Pest tests
+      - name: PHPUnit tests
         working-directory: app
-        run: ./vendor/bin/pest --parallel
+        run: php artisan test

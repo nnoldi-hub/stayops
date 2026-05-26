@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use OwenIt\Auditing\Auditable as AuditableTrait;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Task extends Model
+class Task extends Model implements Auditable
 {
-    use HasFactory;
+    use AuditableTrait, HasFactory;
 
     protected $fillable = [
         'property_id', 'booking_id', 'type', 'title', 'description',
