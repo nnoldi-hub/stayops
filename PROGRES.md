@@ -640,6 +640,27 @@ erDiagram
 
 
 
+
+### Sesiune — Etapa 3 (Property gallery upload — Host): upload foto + plan etaj în /host/properties/{id}/edit
+- ✅ **Volt component `host.properties.edit`** extins cu `WithFileUploads`:
+  - `uploadPhotos()` — validare `image|mimes:jpeg,png,webp|max:5120` per fișier, max 10 fișiere simultan; adaugă în colecția `photos` via Spatie MediaLibrary
+  - `uploadFloorPlan()` — validare `mimes:jpeg,png,webp,pdf|max:10240`; adaugă în colecția `floor_plans` (single file — înlocuiește automat cel existent)
+  - `deletePhoto(int $mediaId)` — șterge o fotografie din colecția `photos` (verificat că aparține proprietății)
+  - `deleteFloorPlan()` — `clearMediaCollection('floor_plans')`
+- ✅ **UI gallery** în template edit:
+  - Grid cu thumb-uri foto existente (hover → buton ×)
+  - Input `multiple` pentru upload foto noi + buton submit separat
+  - Secțiune separată plan etaj cu preview + ștergere + upload nou
+- ✅ **`tests/Feature/HostPropertyGalleryTest.php`** — 7 teste verzi (11 assertions):
+  - host uploadează 2 fotografii → `getMedia('photos')` count=2
+  - upload fișier non-imagine → validation error, count=0
+  - host șterge o fotografie → count=0
+  - host uploadează plan etaj → `getFirstMedia('floor_plans')` != null
+  - plan etaj nou înlocuiește cel vechi → count=1, filename='second.jpg'
+  - host șterge plan etaj → count=0
+  - alt host nu poate accesa pagina de edit → 403
+- ✅ **Total teste cumulat: 116 verzi (293 assertions), durată ~350s**
+- 🟦 Următor: iCal sync (import rezervări din Airbnb/Booking.com via feed .ics).
 ### Sesiune — Etapa 3 (Booking state transitions UI — Host): /host/bookings
 - ✅ **`BookingService::checkIn(Booking)`** — verifică `canTransitionTo('checked_in')`, setează `status='checked_in'`, aruncă `DomainException` la tranziție invalidă
 - ✅ **`BookingService::checkOut(Booking)`** — verifică `canTransitionTo('checked_out')`, setează `status='checked_out'`, aruncă `DomainException` la tranziție invalidă

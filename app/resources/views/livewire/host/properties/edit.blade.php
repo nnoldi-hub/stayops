@@ -3,9 +3,13 @@
 use App\Models\Property;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Validate;
 use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
 
 new #[Layout('components.layouts.public')] #[Title('Editează proprietatea')] class extends Component {
+    use WithFileUploads;
+
     public Property $property;
 
     public string $title = '';
@@ -26,6 +30,10 @@ new #[Layout('components.layouts.public')] #[Title('Editează proprietatea')] cl
     public int $min_nights = 1;
     public int $max_nights = 30;
     public string $status = 'draft';
+
+    /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile[] */
+    public array $newPhotos = [];
+    public mixed $newFloorPlan = null;
 
     public function mount(Property $property): void
     {
@@ -79,6 +87,51 @@ new #[Layout('components.layouts.public')] #[Title('Editează proprietatea')] cl
         $this->property->update($data);
 
         return redirect()->route('host.dashboard');
+    }
+
+    public function uploadPhotos(): void
+    {
+        $this->validate([
+            'newPhotos'   => 'array|max:10',
+            'newPhotos.*' => 'image|mimes:jpeg,png,webp|max:5120',
+        ]);
+
+        foreach ($this->newPhotos as $photo) {
+            $this->property
+                ->addMedia($photo->getRealPath())
+                ->usingFileName($photo->getClientOriginalName())
+                ->toMediaCollection('photos');
+        }
+
+        $this->newPhotos = [];
+        $this->dispatch('photos-uploaded');
+    }
+
+    public function uploadFloorPlan(): void
+    {
+        $this->validate([
+            'newFloorPlan' => 'required|file|mimes:jpeg,png,webp,pdf|max:10240',
+        ]);
+
+        $this->property
+            ->addMedia($this->newFloorPlan->getRealPath())
+            ->usingFileName($this->newFloorPlan->getClientOriginalName())
+            ->toMediaCollection('floor_plans');
+
+        $this->newFloorPlan = null;
+        $this->dispatch('floor-plan-uploaded');
+    }
+
+    public function deletePhoto(int $mediaId): void
+    {
+        $media = $this->property->getMedia('photos')->firstWhere('id', $mediaId);
+        abort_unless($media !== null, 404);
+        $media->delete();
+    }
+
+    public function deleteFloorPlan(): void
+    {
+        $this->property->clearMediaCollection('floor_plans');
     }
 }; ?>
 
@@ -177,5 +230,76 @@ new #[Layout('components.layouts.public')] #[Title('Editează proprietatea')] cl
                 </button>
             </div>
         </form>
-    </div>
+        {{-- ── Gallery ─────────────────────────────────────────────────── --}}
+        <div class="mt-8 border-t pt-6" data-testid="gallery-section">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Galerie foto</h2>
+
+            {{-- Existing photos --}}
+            @php $photos = $property->getMedia('photos'); @endphp
+            @if($photos->isNotEmpty())
+                <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4" data-testid="photos-grid">
+                    @foreach($photos as $photo)
+                        <div class="relative group" data-testid="photo-item-{{ $photo->id }}">
+                            <img src="{{ $photo->getUrl('thumb') }}" alt="{{ $photo->name }}"
+                                 class="w-full h-24 object-cover rounded" />
+                            <button type="button"
+                                    wire:click="deletePhoto({{ $photo->id }})"
+                                    wire:confirm="Ștergi această fotografie?"
+                                    data-testid="delete-photo-{{ $photo->id }}"
+                                    class="absolute top-1 right-1 bg-red-600 text-white text-xs rounded px-1 py-0.5 opacity-0 group-hover:opacity-100 transition">
+                                ×
+                            </button>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <p class="text-sm text-gray-400 mb-4" data-testid="no-photos">Nicio fotografie încă.</p>
+            @endif
+
+            {{-- Upload new photos --}}
+            <form wire:submit="uploadPhotos" class="flex flex-col gap-2" data-testid="upload-photos-form">
+                <input type="file" wire:model="newPhotos" multiple accept="image/jpeg,image/png,image/webp"
+                       data-testid="photos-input"
+                       class="text-sm text-gray-600" />
+                @error('newPhotos.*') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                <button type="submit"
+                        data-testid="upload-photos-btn"
+                        class="self-start text-sm bg-indigo-600 text-white px-3 py-1.5 rounded hover:bg-indigo-700">
+                    Încarcă fotografii
+                </button>
+            </form>
+        </div>
+
+        {{-- ── Floor plan ──────────────────────────────────────────────── --}}
+        <div class="mt-6 border-t pt-6" data-testid="floor-plan-section">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Plan etaj</h2>
+
+            @php $fp = $property->getFirstMedia('floor_plans'); @endphp
+            @if($fp)
+                <div class="flex items-center gap-4 mb-4" data-testid="floor-plan-current">
+                    <img src="{{ $fp->getUrl('thumb') }}" alt="Plan etaj" class="h-20 w-auto rounded border" />
+                    <button type="button"
+                            wire:click="deleteFloorPlan"
+                            wire:confirm="Ștergi planul etaj?"
+                            data-testid="delete-floor-plan"
+                            class="text-xs text-red-600 hover:underline">
+                        Șterge
+                    </button>
+                </div>
+            @else
+                <p class="text-sm text-gray-400 mb-4" data-testid="no-floor-plan">Niciun plan etaj.</p>
+            @endif
+
+            <form wire:submit="uploadFloorPlan" class="flex flex-col gap-2" data-testid="upload-floor-plan-form">
+                <input type="file" wire:model="newFloorPlan" accept="image/jpeg,image/png,image/webp,application/pdf"
+                       data-testid="floor-plan-input"
+                       class="text-sm text-gray-600" />
+                @error('newFloorPlan') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                <button type="submit"
+                        data-testid="upload-floor-plan-btn"
+                        class="self-start text-sm bg-indigo-600 text-white px-3 py-1.5 rounded hover:bg-indigo-700">
+                    Încarcă plan etaj
+                </button>
+            </form>
+        </div>    </div>
 </div>
