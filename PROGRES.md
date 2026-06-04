@@ -662,6 +662,33 @@ erDiagram
 - ✅ **Total teste cumulat: 116 verzi (293 assertions), durată ~350s**
 - 🟦 Următor: iCal sync (import rezervări din Airbnb/Booking.com via feed .ics).
 
+
+### Sesiune — Etapa 6 (Stripe Connect — Host onboarding): cont Express + onboarding link + refresh status
+- ✅ **pp/Models/User.php** extins: adăugat relația host(): HasOne
+- ✅ **pp/Services/StripeConnectService.php** (nou):
+  - createAccount(Host): Host — crează cont Stripe Express (idempotent; skip dacă stripe_account_id există); setează stripe_account_status='pending'
+  - createOnboardingLink(Host, returnUrl, refreshUrl): string — generează URL hosted onboarding via AccountLinks API
+  - efreshAccountStatus(Host): Host — retrieve cont din Stripe, sincronizează status (active/restricted/pending) și onboarded_at
+- ✅ **pp/Providers/AppServiceProvider.php** extins: bind StripeConnectService cu Cashier::stripe() în container
+- ✅ **esources/views/livewire/host/connect.blade.php** (nou, Volt component host.connect):
+  - #[Computed] host() — returnează uth()->user()->host
+  - startOnboarding() — crează cont dacă nu există, generează link onboarding, redirect
+  - efreshStatus() — apelează refreshAccountStatus, curăță errorMessage
+  - UI: badge status (active/pending/restricted/none), buton înregistrare/continuare, buton refresh
+- ✅ **outes/web.php** extins:
+  - GET /host/connect → host.connect (Volt)
+  - GET /host/connect/return → refreshAccountStatus + redirect host.connect
+  - GET /host/connect/refresh → generează nou onboarding link + redirect extern
+- ✅ **	ests/Feature/HostStripeConnectTest.php** — 12 teste (28 assertions):
+  - host vede pagina connect; guest → redirect login
+  - startOnboarding crează cont + redirect (mock StripeClient); skip createAccount dacă ID există
+  - startOnboarding → errorMessage la excepție Stripe
+  - refreshStatus apelează serviciul + curăță errorMessage
+  - return route → refreshAccountStatus + redirect host.connect
+  - service: createAccount salvează stripe_account_id + status=pending (idempotent)
+  - service: refreshAccountStatus → active când charges_enabled=true; restricted când details_submitted=true
+  - service: createOnboardingLink returnează URL corect
+- ✅ **Total teste cumulat: 143 verzi (353 assertions), durată ~343s**
 ### Sesiune — Etapa 5 (iCal sync — Host): import rezervări din Airbnb/Booking.com via feed .ics
 - ✅ **pp/Services/IcalSyncService.php** (nou):
   - parse(string ): array — parser RFC 5545 pur PHP: unfold continuation lines, extrage UID/DTSTART/DTEND/SUMMARY/DESCRIPTION din VEVENT

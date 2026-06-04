@@ -34,6 +34,20 @@ Route::middleware(['auth', 'verified', 'role:Host', 'require_2fa'])->group(funct
     Volt::route('/host/properties/create', 'host.properties.create')->name('host.properties.create');
     Volt::route('/host/properties/{property}/edit', 'host.properties.edit')->name('host.properties.edit');
     Volt::route('/host/properties/{property}/ical', 'host.properties.ical')->name('host.properties.ical');
+    Volt::route('/host/connect', 'host.connect')->name('host.connect');
+    Route::get('/host/connect/return', function () {
+        app(\App\Services\StripeConnectService::class)->refreshAccountStatus(auth()->user()->host);
+        return redirect()->route('host.connect');
+    })->name('host.connect.return');
+    Route::get('/host/connect/refresh', function () {
+        $host = auth()->user()->host;
+        $url  = app(\App\Services\StripeConnectService::class)->createOnboardingLink(
+            $host,
+            route('host.connect.return'),
+            route('host.connect.refresh'),
+        );
+        return redirect()->away($url);
+    })->name('host.connect.refresh');
 });
 
 Route::middleware(['auth', 'verified', 'role:Provider'])->get('/provider', function () {
