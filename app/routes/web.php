@@ -33,6 +33,7 @@ Route::middleware(['auth', 'verified', 'role:Host', 'require_2fa'])->group(funct
     Volt::route('/host/bookings', 'host.bookings')->name('host.bookings');
     Volt::route('/host/properties/create', 'host.properties.create')->name('host.properties.create');
     Volt::route('/host/properties/{property}/edit', 'host.properties.edit')->name('host.properties.edit');
+    Volt::route('/host/properties/{property}/ical', 'host.properties.ical')->name('host.properties.ical');
 });
 
 Route::middleware(['auth', 'verified', 'role:Provider'])->get('/provider', function () {

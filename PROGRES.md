@@ -661,6 +661,22 @@ erDiagram
   - alt host nu poate accesa pagina de edit → 403
 - ✅ **Total teste cumulat: 116 verzi (293 assertions), durată ~350s**
 - 🟦 Următor: iCal sync (import rezervări din Airbnb/Booking.com via feed .ics).
+
+### Sesiune — Etapa 5 (iCal sync — Host): import rezervări din Airbnb/Booking.com via feed .ics
+- ✅ **pp/Services/IcalSyncService.php** (nou):
+  - parse(string ): array — parser RFC 5545 pur PHP: unfold continuation lines, extrage UID/DTSTART/DTEND/SUMMARY/DESCRIPTION din VEVENT
+  - sync(IcalFeed ): int — fetch HTTP, upsert IcalEvent (feed_id+uid unique), crează Booking cu source='ical'/status='confirmed' doar pentru evenimente noi; actualizează last_sync_at/events_count; stochează eroarea la eșec
+- ✅ **database/factories/IcalFeedFactory.php** (nou) — factory pentru IcalFeed cu states inactive()/out()
+- ✅ **esources/views/livewire/host/properties/ical.blade.php** (nou, Volt component host.properties.ical):
+  - Listează feed-uri direction=in ale proprietății
+  - ddFeed() — validare url+source_name, crează IcalFeed
+  - deleteFeed(int) — șterge feed-ul dacă aparține proprietății (findOrFail)
+  - syncFeed(int) — apelează IcalSyncService::sync(), afișează nr. rezervări noi importate
+- ✅ **outes/web.php** extins: GET /host/properties/{property}/ical → host.properties.ical
+- ✅ **	ests/Feature/IcalSyncTest.php** — 9 teste (service unit-style): parse correct/empty/folded-lines/missing-fields; sync crează event+booking; no duplicate la a doua rulare; actualizează feed metadata; eroare HTTP → stochează last_error+rethrow; feed inactiv → 0
+- ✅ **	ests/Feature/HostIcalFeedTest.php** — 6 teste (Volt component): host vede pagina; alt host → 403; adaugă feed valid; URL invalid → validation error; șterge feed; sync via component crează booking
+- ✅ **Total teste cumulat: 131 verzi (325 assertions), durată ~408s**
+- 🟦 Următor: Stripe Connect (host onboarding ca Connected Account).
 ### Sesiune — Etapa 3 (Booking state transitions UI — Host): /host/bookings
 - ✅ **`BookingService::checkIn(Booking)`** — verifică `canTransitionTo('checked_in')`, setează `status='checked_in'`, aruncă `DomainException` la tranziție invalidă
 - ✅ **`BookingService::checkOut(Booking)`** — verifică `canTransitionTo('checked_out')`, setează `status='checked_out'`, aruncă `DomainException` la tranziție invalidă
