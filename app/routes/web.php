@@ -30,6 +30,7 @@ Route::get('/dashboard', function () {
 
 Route::middleware(['auth', 'verified', 'role:Host', 'require_2fa'])->group(function () {
     Volt::route('/host', 'host.dashboard')->name('host.dashboard');
+    Volt::route('/host/bookings', 'host.bookings')->name('host.bookings');
     Volt::route('/host/properties/create', 'host.properties.create')->name('host.properties.create');
     Volt::route('/host/properties/{property}/edit', 'host.properties.edit')->name('host.properties.edit');
 });

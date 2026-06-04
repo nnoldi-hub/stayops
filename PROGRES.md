@@ -639,6 +639,30 @@ erDiagram
 - 🟦 Următor (pas cu pas): Stripe checkout (payment_intent + webhook), Booking state transitions UI (host confirm/cancel/check-in/out), Property gallery upload (Host) sau alte priorități — la alegerea utilizatorului.
 
 
+
+### Sesiune — Etapa 3 (Booking state transitions UI — Host): /host/bookings
+- ✅ **`BookingService::checkIn(Booking)`** — verifică `canTransitionTo('checked_in')`, setează `status='checked_in'`, aruncă `DomainException` la tranziție invalidă
+- ✅ **`BookingService::checkOut(Booking)`** — verifică `canTransitionTo('checked_out')`, setează `status='checked_out'`, aruncă `DomainException` la tranziție invalidă
+- ✅ **Volt component `host.bookings`** (`resources/views/livewire/host/bookings.blade.php`):
+  - Listează toate rezervările pentru proprietățile host-ului curent (paginare 15/pagină)
+  - Butoane contextuale: **Confirmă** (pending), **Anulează** (pending/confirmed), **Check-in** (confirmed), **Check-out** (checked_in)
+  - Modal inline de anulare cu câmp textarea pentru motiv (opțional, max 500 chars)
+  - Gate de ownership strict: `whereHas('property', host_id)` + `firstOrFail()` — host-ul nu poate acționa pe rezervările altui host
+- ✅ **Rută** `GET /host/bookings` în grupul `auth + verified + role:Host + require_2fa`
+- ✅ **`tests/Feature/HostBookingTransitionsTest.php`** — 11 teste verzi (13 assertions):
+  - guest neautentificat → redirect login
+  - non-Host → 403
+  - host vede doar rezervările proprii (nu pe ale altui host)
+  - confirm pending → `status='confirmed'`
+  - confirm rezervare altui host → `ModelNotFoundException` (403 implicit)
+  - cancel pending cu motiv → `status='cancelled'` + `cancellation_reason` salvat
+  - cancel confirmed (fără motiv) → `status='cancelled'`
+  - check-in confirmed → `status='checked_in'`
+  - check-in pending (invalid) → `DomainException`
+  - check-out checked_in → `status='checked_out'`
+  - check-out pending (invalid) → `DomainException`
+- ✅ **Total teste cumulat: 109 verzi (282 assertions), durată ~237s**
+- 🟦 Următor (pas cu pas): Property gallery upload (Host), iCal sync, Stripe Connect sau alte priorități.
 ### Sesiune — Etapa 3 (Stripe checkout: payment_intent + webhook)
 - ✅ **`User` model** — adăugat trait `\Laravel\Cashier\Billable` (Laravel Cashier 16.5.3 / stripe-php 17.6.0) pentru `createOrGetStripeCustomer()`
 - ✅ **`BookingService::create()`** — dacă booking-ul are `guest_id` + `total_price`, creează automat un Stripe PaymentIntent via `Cashier::stripe()->paymentIntents->create(...)` și stochează `stripe_payment_intent_id` pe booking; erorile API Stripe sunt logate fără a bloca crearea booking-ului

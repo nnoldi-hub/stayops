@@ -44,7 +44,7 @@ class BookingService
 
             if ($conflict) {
                 throw new RuntimeException(
-                    "Overbooking refuzat: proprietatea #{$propertyId} are deja o rezervare activa în intervalul {$checkIn} ? {$checkOut}."
+                    "Overbooking refuzat: proprietatea #{$propertyId} are deja o rezervare activa ï¿½n intervalul {$checkIn} ? {$checkOut}."
                 );
             }
 
@@ -110,6 +110,30 @@ class BookingService
         if ($booking->guest_email) {
             Mail::to($booking->guest_email)->send(new BookingCancelledMail($booking->fresh(['property']), $reason));
         }
+
+        return $booking->refresh();
+    }
+
+    public function checkIn(Booking $booking): Booking
+    {
+        if (! $booking->canTransitionTo('checked_in')) {
+            throw new \DomainException("Booking #{$booking->id} cannot transition from {$booking->status} to checked_in.");
+        }
+
+        $booking->status = 'checked_in';
+        $booking->save();
+
+        return $booking->refresh();
+    }
+
+    public function checkOut(Booking $booking): Booking
+    {
+        if (! $booking->canTransitionTo('checked_out')) {
+            throw new \DomainException("Booking #{$booking->id} cannot transition from {$booking->status} to checked_out.");
+        }
+
+        $booking->status = 'checked_out';
+        $booking->save();
 
         return $booking->refresh();
     }
