@@ -20,6 +20,7 @@ class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable, TwoFactorAuthenticatable;
+    use \Laravel\Cashier\Billable;
 
     /**
      * Determines whether the user can access a given Filament panel.

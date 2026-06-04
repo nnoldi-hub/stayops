@@ -638,6 +638,21 @@ erDiagram
 - ✅ **Total teste cumulat: 96 verzi (262 assertions), durată ~178s**
 - 🟦 Următor (pas cu pas): Stripe checkout (payment_intent + webhook), Booking state transitions UI (host confirm/cancel/check-in/out), Property gallery upload (Host) sau alte priorități — la alegerea utilizatorului.
 
+
+### Sesiune — Etapa 3 (Stripe checkout: payment_intent + webhook)
+- ✅ **`User` model** — adăugat trait `\Laravel\Cashier\Billable` (Laravel Cashier 16.5.3 / stripe-php 17.6.0) pentru `createOrGetStripeCustomer()`
+- ✅ **`BookingService::create()`** — dacă booking-ul are `guest_id` + `total_price`, creează automat un Stripe PaymentIntent via `Cashier::stripe()->paymentIntents->create(...)` și stochează `stripe_payment_intent_id` pe booking; erorile API Stripe sunt logate fără a bloca crearea booking-ului
+- ✅ **`StripeWebhookController`** (`app/Http/Controllers/StripeWebhookController.php`) — controller invokable, handler pentru evenimentul `payment_intent.succeeded`:
+  - Găsește booking după `stripe_payment_intent_id`, setează `payment_status='paid'`
+  - Apelează `BookingService::confirm()` dacă statusul curent permite tranziția
+  - Returnează `{"received": true}` cu 200 OK
+- ✅ **Rută webhook** (`routes/web.php`) — `POST /stripe/webhook` fără auth, exclusă din CSRF via `$middleware->validateCsrfTokens(except: ['/stripe/webhook'])` în `bootstrap/app.php`
+- ✅ **`.env`** — adăugate variabilele `STRIPE_PUBLIC_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (placeholder test keys — de înlocuit cu chei reale din Stripe Dashboard)
+- ✅ **`tests/Feature/StripeWebhookTest.php`** — 2 teste verzi (7 assertions):
+  - `payment_intent.succeeded` → booking `payment_status='paid'` + `status='confirmed'`
+  - webhook cu payment intent necunoscut → 200 OK ignorat silențios
+- ✅ **Total teste cumulat: 98 verzi (269 assertions), durată ~257s**
+- 🟦 Următor (pas cu pas): Booking state transitions UI (host confirm/cancel/check-in/out), Property gallery upload (Host), iCal sync (Airbnb/Booking import), Stripe Connect (onboarding host ca Connected Account) sau alte priorități — la alegerea utilizatorului.
 ---
 
 ## 5. Backlog / idei post-MVP

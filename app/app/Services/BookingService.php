@@ -9,25 +9,15 @@ use App\Models\Property;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use Laravel\Cashier\Cashier;
 use RuntimeException;
 
 class BookingService
 {
-    /**
-     * Creează o rezervare anti-overbooking, folosind row-level lock pe property
-     * + verificare overlap în aceeași tranzacție.
-     *
-     * Statusurile considerate "active" (blochează intervalul): pending, confirmed, checked_in.
-     * Statusurile finalizate/refuzate nu blochează (cancelled, refunded, no_show, checked_out, disputed).
-     *
-     * @param  array<string, mixed>  $attributes  Atribute Booking (fără reference — se generează dacă lipsește)
-     *
-     * @throws \RuntimeException dacă există overlap
-     */
     public function create(int $propertyId, array $attributes): Booking
     {
         return DB::transaction(function () use ($propertyId, $attributes) {
-            // Lock pe rândul proprietății — serializează creările concurente per property.
             $property = Property::query()
                 ->whereKey($propertyId)
                 ->lockForUpdate()
@@ -44,7 +34,6 @@ class BookingService
                 throw new \InvalidArgumentException('check_in and check_out are required.');
             }
 
-            // Overlap: existing.check_in < new.check_out  AND  existing.check_out > new.check_in
             $conflict = Booking::query()
                 ->where('property_id', $propertyId)
                 ->whereIn('status', ['pending', 'confirmed', 'checked_in'])
@@ -55,22 +44,42 @@ class BookingService
 
             if ($conflict) {
                 throw new RuntimeException(
-                    "Overbooking refuzat: proprietatea #{$propertyId} are deja o rezervare activă în intervalul {$checkIn} → {$checkOut}."
+                    "Overbooking refuzat: proprietatea #{$propertyId} are deja o rezervare activa �n intervalul {$checkIn} ? {$checkOut}."
                 );
             }
 
             $attributes['property_id'] = $propertyId;
             $attributes['reference'] ??= 'BK-'.strtoupper(\Illuminate\Support\Str::random(8));
+            $attributes['payment_status'] ??= 'pending';
+
+            if (isset($attributes['guest_id']) && isset($attributes['total_price'])) {
+                try {
+                    $guest = \App\Models\User::find($attributes['guest_id']);
+                    if ($guest) {
+                        $stripeCustomer = $guest->createOrGetStripeCustomer();
+                        $intent = Cashier::stripe()->paymentIntents->create([
+                            'amount' => (int) ($attributes['total_price'] * 100),
+                            'currency' => strtolower($attributes['currency'] ?? 'usd'),
+                            'customer' => $stripeCustomer->id,
+                            'metadata' => [
+                                'property_id' => $propertyId,
+                                'booking_reference' => $attributes['reference'],
+                            ],
+                        ]);
+                        $attributes['stripe_payment_intent_id'] = $intent->id;
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Stripe payment intent failed', [
+                        'error' => $e->getMessage(),
+                        'guest_id' => $attributes['guest_id'],
+                    ]);
+                }
+            }
 
             return Booking::create($attributes);
         });
     }
 
-    /**
-     * Confirmă o rezervare (pending → confirmed). Trimite email guest-ului.
-     *
-     * @throws \DomainException dacă tranziția de stare nu este permisă
-     */
     public function confirm(Booking $booking): Booking
     {
         if (! $booking->canTransitionTo('confirmed')) {
@@ -87,11 +96,6 @@ class BookingService
         return $booking->refresh();
     }
 
-    /**
-     * Anulează o rezervare. Trimite email guest-ului cu motivul opțional.
-     *
-     * @throws \DomainException dacă tranziția de stare nu este permisă
-     */
     public function cancel(Booking $booking, ?string $reason = null): Booking
     {
         if (! $booking->canTransitionTo('cancelled')) {
