@@ -11,3 +11,4 @@ desktop.ini
 
 # Local secrets at root (if any)
 .env.local
+dump.rdb
