@@ -26,7 +26,7 @@ class HostIcalFeedTest extends TestCase
     {
         /** @var User $user */
         $user = User::factory()->create([
-            'two_factor_secret'       => encrypt('secret'),
+            'two_factor_secret' => encrypt('secret'),
             'two_factor_confirmed_at' => now(),
         ]);
         $user->assignRole('Host');
@@ -56,11 +56,11 @@ class HostIcalFeedTest extends TestCase
     {
         // Create property belonging to host1
         $user1 = User::factory()->create([
-            'two_factor_secret'       => encrypt('secret'),
+            'two_factor_secret' => encrypt('secret'),
             'two_factor_confirmed_at' => now(),
         ]);
         $user1->assignRole('Host');
-        $host1    = Host::factory()->create(['user_id' => $user1->id]);
+        $host1 = Host::factory()->create(['user_id' => $user1->id]);
         $property = $this->makeProperty($host1);
 
         // Switch to host2
@@ -84,9 +84,9 @@ class HostIcalFeedTest extends TestCase
 
         $this->assertDatabaseHas('ical_feeds', [
             'property_id' => $property->id,
-            'direction'   => 'in',
+            'direction' => 'in',
             'source_name' => 'airbnb',
-            'url'         => 'https://www.airbnb.com/calendar/ical/123.ics',
+            'url' => 'https://www.airbnb.com/calendar/ical/123.ics',
         ]);
     }
 
@@ -112,10 +112,10 @@ class HostIcalFeedTest extends TestCase
 
         $feed = IcalFeed::create([
             'property_id' => $property->id,
-            'direction'   => 'in',
+            'direction' => 'in',
             'source_name' => 'airbnb',
-            'url'         => 'https://example.com/ical.ics',
-            'is_active'   => true,
+            'url' => 'https://example.com/ical.ics',
+            'is_active' => true,
         ]);
 
         Volt::test('host.properties.ical', ['property' => $property])
@@ -148,10 +148,10 @@ class HostIcalFeedTest extends TestCase
 
         $feed = IcalFeed::create([
             'property_id' => $property->id,
-            'direction'   => 'in',
+            'direction' => 'in',
             'source_name' => 'airbnb',
-            'url'         => 'https://example.com/ical.ics',
-            'is_active'   => true,
+            'url' => 'https://example.com/ical.ics',
+            'is_active' => true,
         ]);
 
         Volt::test('host.properties.ical', ['property' => $property])
@@ -159,9 +159,9 @@ class HostIcalFeedTest extends TestCase
 
         $this->assertDatabaseHas('bookings', [
             'property_id' => $property->id,
-            'source'      => 'ical',
-            'status'      => 'confirmed',
-            'guest_name'  => 'Jane Smith',
+            'source' => 'ical',
+            'status' => 'confirmed',
+            'guest_name' => 'Jane Smith',
         ]);
     }
 }

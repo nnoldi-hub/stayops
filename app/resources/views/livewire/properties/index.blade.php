@@ -4,20 +4,29 @@ use App\Models\Amenity;
 use App\Models\Property;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
 new #[Layout('components.layouts.public')] #[Title('Proprietăți disponibile')] class extends Component {
     use WithPagination;
 
+    #[Url]
     public string $search = '';
+    #[Url]
     public ?string $city = null;
+    #[Url]
     public ?string $propertyType = null;
+    #[Url]
     public ?int $minGuests = null;
+    #[Url]
     public ?float $lat = null;
+    #[Url]
     public ?float $lng = null;
+    #[Url]
     public ?float $radiusKm = null;
     /** @var array<int,int> */
+    #[Url]
     public array $amenities = [];
 
     public function updating(string $name): void
@@ -30,20 +39,31 @@ new #[Layout('components.layouts.public')] #[Title('Proprietăți disponibile')]
     public function with(): array
     {
         $query = Property::query()
-            ->where('status', 'published')
+            ->publiclyVisible()
             ->when($this->search, fn ($q, $s) => $q->where(fn ($qq) => $qq
-                ->where('title', 'ilike', "%{$s}%")
-                ->orWhere('description', 'ilike', "%{$s}%")
+                ->where('title', 'like', "%{$s}%")
+                ->orWhere('description', 'like', "%{$s}%")
             ))
-            ->when($this->city, fn ($q, $c) => $q->where('city', 'ilike', "%{$c}%"))
+            ->when($this->city, fn ($q, $c) => $q->where('city', 'like', "%{$c}%"))
             ->when($this->propertyType, fn ($q, $t) => $q->where('property_type', $t))
             ->when($this->minGuests, fn ($q, $g) => $q->where('max_guests', '>=', $g))
             ->when(
                 $this->lat !== null && $this->lng !== null && $this->radiusKm !== null && $this->radiusKm > 0,
-                fn ($q) => $q->whereRaw(
-                    'ST_DWithin(location, ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?)',
-                    [(float) $this->lng, (float) $this->lat, (float) $this->radiusKm * 1000]
-                )
+                function ($q) {
+                    $haversine = '(6371000 * ACOS(LEAST(1, GREATEST(-1, '
+                        .'COS(RADIANS(?)) * COS(RADIANS(latitude)) * COS(RADIANS(longitude) - RADIANS(?)) '
+                        .'+ SIN(RADIANS(?)) * SIN(RADIANS(latitude))'
+                        .'))))';
+
+                    $q->whereNotNull('latitude')
+                        ->whereNotNull('longitude')
+                        ->whereRaw("{$haversine} <= ?", [
+                            (float) $this->lat,
+                            (float) $this->lng,
+                            (float) $this->lat,
+                            (float) $this->radiusKm * 1000,
+                        ]);
+                }
             )
             ->when(! empty($this->amenities), function ($q) {
                 $ids = array_map('intval', $this->amenities);

@@ -6,8 +6,8 @@ use App\Models\Booking;
 use App\Models\IcalEvent;
 use App\Models\IcalFeed;
 use Carbon\Carbon;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class IcalSyncService
 {
@@ -32,42 +32,42 @@ class IcalSyncService
                 $icalEvent = IcalEvent::updateOrCreate(
                     ['feed_id' => $feed->id, 'uid' => $event['uid']],
                     [
-                        'starts_on'   => $event['starts_on'],
-                        'ends_on'     => $event['ends_on'],
-                        'summary'     => $event['summary'] ?? null,
+                        'starts_on' => $event['starts_on'],
+                        'ends_on' => $event['ends_on'],
+                        'summary' => $event['summary'] ?? null,
                         'description' => $event['description'] ?? null,
-                        'raw'         => $event,
+                        'raw' => $event,
                     ]
                 );
 
                 if ($icalEvent->wasRecentlyCreated && $icalEvent->booking_id === null) {
-                    $checkIn  = Carbon::parse($event['starts_on']);
+                    $checkIn = Carbon::parse($event['starts_on']);
                     $checkOut = Carbon::parse($event['ends_on']);
-                    $nights   = max(1, (int) $checkIn->diffInDays($checkOut));
+                    $nights = max(1, (int) $checkIn->diffInDays($checkOut));
 
                     $booking = Booking::create([
-                        'reference'      => 'ICAL-' . strtoupper(Str::random(8)),
-                        'property_id'    => $feed->property_id,
-                        'guest_id'       => null,
-                        'guest_name'     => $event['summary'] ?? 'iCal Import',
-                        'guest_email'    => 'ical@noreply.com',
-                        'guest_phone'    => '',
-                        'check_in'       => $event['starts_on'],
-                        'check_out'      => $event['ends_on'],
-                        'nights'         => $nights,
-                        'guests_count'   => 1,
-                        'adults'         => 1,
-                        'children'       => 0,
-                        'nightly_rate'   => 0,
-                        'subtotal'       => 0,
-                        'cleaning_fee'   => 0,
-                        'platform_fee'   => 0,
-                        'host_payout'    => 0,
-                        'total_price'    => 0,
-                        'currency'       => 'RON',
-                        'status'         => 'confirmed',
-                        'source'         => 'ical',
-                        'external_id'    => $event['uid'],
+                        'reference' => 'ICAL-'.strtoupper(Str::random(8)),
+                        'property_id' => $feed->property_id,
+                        'guest_id' => null,
+                        'guest_name' => $event['summary'] ?? 'iCal Import',
+                        'guest_email' => 'ical@noreply.com',
+                        'guest_phone' => '',
+                        'check_in' => $event['starts_on'],
+                        'check_out' => $event['ends_on'],
+                        'nights' => $nights,
+                        'guests_count' => 1,
+                        'adults' => 1,
+                        'children' => 0,
+                        'nightly_rate' => 0,
+                        'subtotal' => 0,
+                        'cleaning_fee' => 0,
+                        'platform_fee' => 0,
+                        'host_payout' => 0,
+                        'total_price' => 0,
+                        'currency' => 'RON',
+                        'status' => 'confirmed',
+                        'source' => 'ical',
+                        'external_id' => $event['uid'],
                         'payment_status' => 'paid',
                     ]);
 
@@ -79,7 +79,7 @@ class IcalSyncService
             $feed->update([
                 'last_sync_at' => now(),
                 'events_count' => count($events),
-                'last_error'   => null,
+                'last_error' => null,
             ]);
 
             return $synced;
@@ -99,7 +99,7 @@ class IcalSyncService
 
         // Unfold continuation lines (RFC 5545 §3.1)
         $rawLines = preg_split('/\r?\n/', $ics);
-        $lines    = [];
+        $lines = [];
         foreach ($rawLines as $line) {
             if ($line !== '' && ($line[0] === ' ' || $line[0] === "\t")) {
                 $last = count($lines) - 1;
@@ -120,6 +120,7 @@ class IcalSyncService
             if ($line === 'BEGIN:VEVENT') {
                 $inEvent = true;
                 $current = [];
+
                 continue;
             }
 
@@ -128,6 +129,7 @@ class IcalSyncService
                 if (! empty($current['uid']) && ! empty($current['starts_on']) && ! empty($current['ends_on'])) {
                     $events[] = $current;
                 }
+
                 continue;
             }
 
@@ -140,7 +142,7 @@ class IcalSyncService
                 continue;
             }
 
-            $prop  = strtoupper(substr($line, 0, $colon));
+            $prop = strtoupper(substr($line, 0, $colon));
             $value = substr($line, $colon + 1);
 
             // Strip parameters from property name (e.g. DTSTART;VALUE=DATE → DTSTART)
@@ -177,6 +179,7 @@ class IcalSyncService
         if (preg_match('/^\d{8}$/', $date)) {
             return Carbon::createFromFormat('Ymd', $date)->format('Y-m-d');
         }
+
         return Carbon::parse($date)->format('Y-m-d');
     }
 

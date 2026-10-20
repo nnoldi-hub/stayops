@@ -6,6 +6,7 @@ use App\Models\Host;
 use App\Models\Property;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -171,11 +172,13 @@ class HostDashboardCrudTest extends TestCase
         $otherHost = Host::factory()->create();
         $foreign = Property::factory()->for($otherHost)->create();
 
+        $this->withoutExceptionHandling();
+
         try {
             Volt::test('host.dashboard')
                 ->call('delete', $foreign->id);
             $this->fail('Expected ModelNotFoundException');
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+        } catch (ModelNotFoundException) {
             // expected
         }
 

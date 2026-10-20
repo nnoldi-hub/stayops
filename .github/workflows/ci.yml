@@ -11,15 +11,14 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      postgres:
-        image: postgis/postgis:16-3.4-alpine
+      mysql:
+        image: mysql:8.4
         env:
-          POSTGRES_DB: mrhm_test
-          POSTGRES_USER: mrhm
-          POSTGRES_PASSWORD: secret
-        ports: ['5432:5432']
+          MYSQL_DATABASE: testing
+          MYSQL_ROOT_PASSWORD: secret
+        ports: ['3306:3306']
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -psecret"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -40,7 +39,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, intl, pgsql, pdo_pgsql, redis, gd, zip, bcmath
+          extensions: mbstring, intl, pdo_mysql, redis, gd, zip, bcmath, pcntl, posix
           coverage: none
           tools: composer:v2
 
@@ -66,13 +65,20 @@ jobs:
       - name: Configure test DB
         working-directory: app
         run: |
-          sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/' .env
+          sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' .env
           sed -i 's/^# *DB_HOST=.*/DB_HOST=127.0.0.1/' .env
-          sed -i 's/^# *DB_PORT=.*/DB_PORT=5432/' .env
-          sed -i 's/^# *DB_DATABASE=.*/DB_DATABASE=mrhm_test/' .env
-          sed -i 's/^# *DB_USERNAME=.*/DB_USERNAME=mrhm/' .env
+          sed -i 's/^# *DB_PORT=.*/DB_PORT=3306/' .env
+          sed -i 's/^# *DB_DATABASE=.*/DB_DATABASE=testing/' .env
+          sed -i 's/^# *DB_USERNAME=.*/DB_USERNAME=root/' .env
           sed -i 's/^# *DB_PASSWORD=.*/DB_PASSWORD=secret/' .env
+          echo "REDIS_CLIENT=predis" >> .env
           echo "REDIS_HOST=127.0.0.1" >> .env
+
+      - name: Build frontend assets
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
 
       - name: Run migrations
         working-directory: app

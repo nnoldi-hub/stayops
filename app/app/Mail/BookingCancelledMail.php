@@ -13,9 +13,7 @@ class BookingCancelledMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public Booking $booking, public ?string $reason = null)
-    {
-    }
+    public function __construct(public Booking $booking, public ?string $reason = null) {}
 
     public function envelope(): Envelope
     {

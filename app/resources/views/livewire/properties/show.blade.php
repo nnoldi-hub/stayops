@@ -9,10 +9,11 @@ new #[Layout('components.layouts.public')] class extends Component {
 
     public function mount(Property $property): void
     {
-        if ($property->status !== 'published') {
+        $this->property = $property->load('amenities', 'host');
+
+        if ($property->status !== 'published' || $property->host?->kyc_status !== 'approved') {
             abort(404);
         }
-        $this->property = $property->load('amenities', 'host');
     }
 }; ?>
 

@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\Hosts\Tables;
 
+use App\Filament\Actions\ApproveKycAction;
+use App\Filament\Actions\ImpersonateAction;
+use App\Filament\Actions\RejectKycAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -34,6 +37,13 @@ class HostsTable
                 TextColumn::make('vat_number')
                     ->searchable(),
                 TextColumn::make('kyc_status')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'approved' => 'success',
+                        'rejected' => 'danger',
+                        'submitted' => 'warning',
+                        default => 'gray',
+                    })
                     ->searchable(),
                 TextColumn::make('stripe_account_id')
                     ->searchable(),
@@ -59,6 +69,9 @@ class HostsTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
+                ApproveKycAction::make('hosts.approve_kyc'),
+                RejectKycAction::make('hosts.approve_kyc'),
+                ImpersonateAction::make(),
                 EditAction::make(),
             ])
             ->toolbarActions([

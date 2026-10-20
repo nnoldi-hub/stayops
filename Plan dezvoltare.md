@@ -1,5 +1,26 @@
 Plan Complet de Dezvoltare: Platformă Management Regim Hotelier \& Mentenanță
 
+## Stadiu implementare (actualizat 2026-10-19)
+
+Detalii și jurnal pe sesiuni: vezi `PROGRES.md`.
+
+| Etapă | Status | Note |
+|---|---|---|
+| Etapa 1 — Fundație (proiect, migrații ~24 tabele, auth, 4 roluri RBAC) | ✅ | Laravel 13, Breeze+Fortify, Spatie Permission, 2FA obligatoriu pt. SuperAdmin/Host |
+| Etapa 2 — MVP rezervări + căutare geo | ✅ | Căutare prin **Haversine** (MySQL), fișă proprietate, rezervare cu anti-overbooking (`lockForUpdate`), review/rating, iCal sync (Airbnb/Booking) |
+| Etapa 3 — Modulul de mentenanță | ✅ | Auto-task la check-out (`BookingCheckedOut` → `CreateCleaningTask`, alocare după firmă preferată/oraș), panou Provider, echipe interne + delegare, proof of work (poze before/after), raport de facturare |
+| Etapa 4 — SuperAdmin, Abonamente și Plăți | ✅ | **Done**: panou Filament admin, impersonation, approval KYC (host/provider), CRUD planuri, Stripe Connect (host onboarding) + checkout `payment_intent` + webhook; **SaaS**: abonamente Cashier forțate pe host (middleware `subscription` + pagină `/host/subscription`), `application_fee` + `transfer_data` la rezervare, sincronizare webhook `customer.subscription.*`, widget MRR/churn în admin. **Rămas producție**: chei Stripe live, `STRIPE_WEBHOOK_SECRET`, prețuri/planuri reale |
+| Etapa 5 — Notificări, securitate, lansare | 🟦 | **Done**: emailuri tranzacționale booking (confirmare/anulare), 2FA, audit (`owen-it/laravel-auditing`), CI (Pint+PHPStan+teste pe MySQL/Redis), **mesagerie internă** (`Conversation`/`Message`, pagini Volt `/messages`) + **notificări in-app** (canal `database`, `NotificationBell` în toate panourile). **Rămas**: Twilio SMS (coduri check-in), Mailgun/Postmark producție, deploy Forge + SSL |
+| Faza 2 — Administrare conturi + comunicare | 🟦 | **Done**: resursă Filament „Utilizatori" (CRUD, roluri, suspendare/reactivare, reset parolă, impersonation), middleware `EnsureAccountActive`, mesagerie internă + notificări in-app. **Rămas**: profil completat (badge profesional) + dashboard per tip cont (Guest `/dashboard` încă placeholder) |
+
+**Decizii care diferă de planul inițial:**
+- **DB: MySQL 8.4 nativ Laragon** (nu PostgreSQL 16 + PostGIS). Geo-căutare prin formulă Haversine (`whereRaw`); anti-overbooking prin `lockForUpdate` în tranzacție (fără constrângere `EXCLUDE`).
+- **Filament 5** (nu 3) — 2 panouri: `admin` (SuperAdmin) și `provider` (Provider). Panoul **Host** rămâne pe **Livewire/Volt** (nu Filament).
+- **Redis 5 + client predis** (fără `phpredis` pe Windows); **Horizon doar în CI** (Linux), local `queue:work`.
+- **Storage**: MediaLibrary pe discul local/`public` (S3/DO Spaces rămâne post-lansare).
+
+---
+
 ​1. Arhitectura Bazei de Date \& Structura de Roluri (RBAC)
 
 ​Pentru ca sistemul să fie modular, vom folosi un sistem de roluri stricte (Role-Based Access Control). Un utilizator poate avea unul sau mai multe dintre următoarele roluri:

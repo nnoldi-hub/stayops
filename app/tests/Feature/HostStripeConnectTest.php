@@ -9,6 +9,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Mockery;
+use Stripe\StripeClient;
 use Tests\TestCase;
 
 class HostStripeConnectTest extends TestCase
@@ -25,7 +26,7 @@ class HostStripeConnectTest extends TestCase
     {
         /** @var User $user */
         $user = User::factory()->create([
-            'two_factor_secret'       => encrypt('secret'),
+            'two_factor_secret' => encrypt('secret'),
             'two_factor_confirmed_at' => now(),
         ]);
         $user->assignRole('Host');
@@ -75,7 +76,7 @@ class HostStripeConnectTest extends TestCase
     public function test_start_onboarding_skips_create_account_if_already_exists(): void
     {
         [, $host] = $this->actAsHost([
-            'stripe_account_id'     => 'acct_existing',
+            'stripe_account_id' => 'acct_existing',
             'stripe_account_status' => 'pending',
         ]);
 
@@ -113,7 +114,7 @@ class HostStripeConnectTest extends TestCase
     public function test_refresh_status_calls_service_and_clears_error(): void
     {
         [, $host] = $this->actAsHost([
-            'stripe_account_id'     => 'acct_existing',
+            'stripe_account_id' => 'acct_existing',
             'stripe_account_status' => 'pending',
         ]);
 
@@ -139,7 +140,7 @@ class HostStripeConnectTest extends TestCase
         $mock = Mockery::mock(StripeConnectService::class);
         $mock->shouldReceive('refreshAccountStatus')
             ->once()
-            ->with(Mockery::on(fn($h) => $h instanceof Host && $h->id === $host->id));
+            ->with(Mockery::on(fn ($h) => $h instanceof Host && $h->id === $host->id));
 
         $this->app->instance(StripeConnectService::class, $mock);
 
@@ -158,11 +159,11 @@ class HostStripeConnectTest extends TestCase
         $stripeAccounts = Mockery::mock();
         $stripeAccounts->shouldReceive('create')->once()->andReturn($fakeAccount);
 
-        $stripeClient = Mockery::mock(\Stripe\StripeClient::class);
+        $stripeClient = Mockery::mock(StripeClient::class);
         $stripeClient->accounts = $stripeAccounts;
 
         $service = new StripeConnectService($stripeClient);
-        $result  = $service->createAccount($host);
+        $result = $service->createAccount($host);
 
         $this->assertEquals('acct_new_123', $result->stripe_account_id);
         $this->assertEquals('pending', $result->stripe_account_status);
@@ -172,12 +173,12 @@ class HostStripeConnectTest extends TestCase
     {
         [, $host] = $this->actAsHost(['stripe_account_id' => 'acct_already']);
 
-        $stripeClient = Mockery::mock(\Stripe\StripeClient::class);
+        $stripeClient = Mockery::mock(StripeClient::class);
         // Should NOT call accounts->create
         $stripeClient->shouldNotReceive('accounts');
 
         $service = new StripeConnectService($stripeClient);
-        $result  = $service->createAccount($host);
+        $result = $service->createAccount($host);
 
         $this->assertEquals('acct_already', $result->stripe_account_id);
     }
@@ -187,18 +188,18 @@ class HostStripeConnectTest extends TestCase
         [, $host] = $this->actAsHost(['stripe_account_id' => 'acct_xyz']);
 
         $fakeAccount = (object) [
-            'charges_enabled'   => true,
+            'charges_enabled' => true,
             'details_submitted' => true,
         ];
 
         $stripeAccounts = Mockery::mock();
         $stripeAccounts->shouldReceive('retrieve')->once()->andReturn($fakeAccount);
 
-        $stripeClient         = Mockery::mock(\Stripe\StripeClient::class);
+        $stripeClient = Mockery::mock(StripeClient::class);
         $stripeClient->accounts = $stripeAccounts;
 
         $service = new StripeConnectService($stripeClient);
-        $result  = $service->refreshAccountStatus($host);
+        $result = $service->refreshAccountStatus($host);
 
         $this->assertEquals('active', $result->stripe_account_status);
         $this->assertNotNull($result->onboarded_at);
@@ -209,18 +210,18 @@ class HostStripeConnectTest extends TestCase
         [, $host] = $this->actAsHost(['stripe_account_id' => 'acct_xyz']);
 
         $fakeAccount = (object) [
-            'charges_enabled'   => false,
+            'charges_enabled' => false,
             'details_submitted' => true,
         ];
 
         $stripeAccounts = Mockery::mock();
         $stripeAccounts->shouldReceive('retrieve')->once()->andReturn($fakeAccount);
 
-        $stripeClient         = Mockery::mock(\Stripe\StripeClient::class);
+        $stripeClient = Mockery::mock(StripeClient::class);
         $stripeClient->accounts = $stripeAccounts;
 
         $service = new StripeConnectService($stripeClient);
-        $result  = $service->refreshAccountStatus($host);
+        $result = $service->refreshAccountStatus($host);
 
         $this->assertEquals('restricted', $result->stripe_account_status);
     }
@@ -234,11 +235,11 @@ class HostStripeConnectTest extends TestCase
         $stripeAccountLinks = Mockery::mock();
         $stripeAccountLinks->shouldReceive('create')->once()->andReturn($fakeLink);
 
-        $stripeClient              = Mockery::mock(\Stripe\StripeClient::class);
+        $stripeClient = Mockery::mock(StripeClient::class);
         $stripeClient->accountLinks = $stripeAccountLinks;
 
         $service = new StripeConnectService($stripeClient);
-        $url     = $service->createOnboardingLink($host, 'https://app.test/return', 'https://app.test/refresh');
+        $url = $service->createOnboardingLink($host, 'https://app.test/return', 'https://app.test/refresh');
 
         $this->assertEquals('https://connect.stripe.com/setup/start', $url);
     }

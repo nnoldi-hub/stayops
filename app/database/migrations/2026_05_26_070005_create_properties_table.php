@@ -2,10 +2,10 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('properties', function (Blueprint $table) {
@@ -20,7 +20,8 @@ return new class extends Migration {
             $table->string('county', 100)->nullable();
             $table->string('country', 2)->default('RO');
             $table->string('postal_code', 20)->nullable();
-            // location POINT added via DB::statement below
+            $table->decimal('latitude', 10, 7)->nullable();
+            $table->decimal('longitude', 10, 7)->nullable();
             $table->decimal('base_price', 10, 2);
             $table->string('currency', 3)->default('RON');
             $table->decimal('cleaning_fee', 10, 2)->default(0);
@@ -40,11 +41,8 @@ return new class extends Migration {
             $table->softDeletes();
 
             $table->index(['city', 'status']);
+            $table->index(['latitude', 'longitude']);
         });
-
-        // PostGIS geometry column + GIST index
-        DB::statement('ALTER TABLE properties ADD COLUMN location geography(POINT, 4326) NULL');
-        DB::statement('CREATE INDEX properties_location_gix ON properties USING GIST (location)');
 
         Schema::create('property_amenities', function (Blueprint $table) {
             $table->foreignId('property_id')->constrained()->cascadeOnDelete();

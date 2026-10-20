@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Property;
+use App\Models\Provider;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -30,6 +31,7 @@ new #[Layout('components.layouts.public')] #[Title('Editează proprietatea')] cl
     public int $min_nights = 1;
     public int $max_nights = 30;
     public string $status = 'draft';
+    public ?int $preferredProviderId = null;
 
     /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile[] */
     public array $newPhotos = [];
@@ -59,6 +61,19 @@ new #[Layout('components.layouts.public')] #[Title('Editează proprietatea')] cl
         $this->min_nights = (int) $property->min_nights;
         $this->max_nights = (int) $property->max_nights;
         $this->status = (string) $property->status;
+        $this->preferredProviderId = $property->preferred_provider_id !== null
+            ? (int) $property->preferred_provider_id
+            : null;
+    }
+
+    public function availableProviders(): array
+    {
+        return Provider::query()
+            ->where('is_active', true)
+            ->where('kyc_status', 'approved')
+            ->orderBy('company_name')
+            ->pluck('company_name', 'id')
+            ->all();
     }
 
     public function save(): mixed
@@ -82,7 +97,11 @@ new #[Layout('components.layouts.public')] #[Title('Editează proprietatea')] cl
             'min_nights' => 'required|integer|min:1',
             'max_nights' => 'required|integer|min:1',
             'status' => 'required|in:draft,published,paused,archived',
+            'preferredProviderId' => 'nullable|integer|exists:providers,id',
         ]);
+
+        $data['preferred_provider_id'] = $this->preferredProviderId;
+        unset($data['preferredProviderId']);
 
         $this->property->update($data);
 
@@ -198,6 +217,18 @@ new #[Layout('components.layouts.public')] #[Title('Editează proprietatea')] cl
             <div>
                 <label class="block text-sm font-medium text-gray-700">Taxă curățenie</label>
                 <input type="number" step="0.01" wire:model="cleaning_fee" class="mt-1 block w-full rounded border-gray-300" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Firmă mentenanță preferată</label>
+                <select wire:model.live="preferredProviderId"
+                        class="mt-1 block w-full rounded border-gray-300"
+                        data-testid="field-preferred-provider">
+                    <option value="">— Nicio preferință (alocare automată) —</option>
+                    @foreach ($this->availableProviders() as $providerId => $providerName)
+                        <option value="{{ $providerId }}">{{ $providerName }}</option>
+                    @endforeach
+                </select>
+                @error('preferredProviderId') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Max oaspeți</label>

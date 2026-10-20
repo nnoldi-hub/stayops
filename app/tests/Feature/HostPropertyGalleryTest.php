@@ -27,7 +27,7 @@ class HostPropertyGalleryTest extends TestCase
     {
         /** @var User $user */
         $user = User::factory()->create([
-            'two_factor_secret'       => encrypt('secret'),
+            'two_factor_secret' => encrypt('secret'),
             'two_factor_confirmed_at' => now(),
         ]);
         $user->assignRole('Host');
@@ -149,7 +149,7 @@ class HostPropertyGalleryTest extends TestCase
     {
         [, $host] = $this->actAsHost();
         $otherHost = Host::factory()->create();
-        $property  = $this->makeProperty($otherHost);
+        $property = $this->makeProperty($otherHost);
 
         Volt::test('host.properties.edit', ['property' => $property])
             ->assertForbidden();

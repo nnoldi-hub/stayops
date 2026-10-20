@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Events\BookingCheckedOut;
 use App\Models\Booking;
 use App\Models\BookingStateTransition;
 use Illuminate\Support\Facades\Auth;
@@ -44,12 +45,16 @@ class BookingObserver
         }
 
         BookingStateTransition::create([
-            'booking_id'      => $booking->id,
-            'from_state'      => $booking->getOriginal('status'),
-            'to_state'        => $booking->status,
-            'reason'          => $booking->cancellation_reason,
-            'actor_id'        => Auth::id(),
+            'booking_id' => $booking->id,
+            'from_state' => $booking->getOriginal('status'),
+            'to_state' => $booking->status,
+            'reason' => $booking->cancellation_reason,
+            'actor_id' => Auth::id(),
             'transitioned_at' => now(),
         ]);
+
+        if ($booking->status === 'checked_out') {
+            BookingCheckedOut::dispatch($booking);
+        }
     }
 }

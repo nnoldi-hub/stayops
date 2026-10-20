@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Hosts\Schemas;
 
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
@@ -25,10 +26,24 @@ class HostForm
                     ->required()
                     ->default('RO'),
                 TextInput::make('vat_number'),
-                TextInput::make('kyc_status')
+                Select::make('kyc_status')
+                    ->label('Status KYC')
                     ->required()
-                    ->default('pending'),
-                TextInput::make('kyc_documents'),
+                    ->default('pending')
+                    ->options([
+                        'pending' => 'În așteptare',
+                        'submitted' => 'Trimis spre verificare',
+                        'approved' => 'Aprobat',
+                        'rejected' => 'Respins',
+                    ]),
+                FileUpload::make('kyc_documents')
+                    ->label('Documente KYC')
+                    ->multiple()
+                    ->disk('public')
+                    ->directory('kyc/hosts')
+                    ->reorderable()
+                    ->openable()
+                    ->nullable(),
                 TextInput::make('stripe_account_id'),
                 TextInput::make('stripe_account_status')
                     ->required()

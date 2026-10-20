@@ -22,8 +22,31 @@ new #[Layout('components.layouts.public')] #[Title('Rezervare confirmată')] cla
             403
         );
 
-        $booking->load('property');
+        $booking->load('property.host.user', 'guest');
         $this->booking = $booking;
+    }
+
+    /**
+     * Persoana de contactat (gazda, dacă ești oaspete; oaspetele, dacă ești gazdă).
+     */
+    #[Computed]
+    public function contactTarget(): ?\App\Models\User
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return null;
+        }
+
+        if ($this->booking->guest_id === $user->id) {
+            return $this->booking->property?->host?->user;
+        }
+
+        if ($this->booking->property?->host?->user_id === $user->id) {
+            return $this->booking->guest;
+        }
+
+        return null;
     }
 
     #[Computed]
@@ -93,6 +116,15 @@ new #[Layout('components.layouts.public')] #[Title('Rezervare confirmată')] cla
         <div class="mt-6 flex gap-3">
             <a href="{{ route('properties.index') }}" class="text-sm text-gray-700 underline">Înapoi la căutare</a>
             <a href="{{ route('dashboard') }}" class="text-sm text-gray-700 underline">Spre dashboard</a>
+            @if ($this->contactTarget)
+                <a
+                    href="{{ route('messages.start', $this->contactTarget) }}?booking={{ $booking->reference }}"
+                    class="text-sm text-gray-700 underline"
+                    data-testid="contact-link"
+                >
+                    Contactează {{ $booking->guest_id === auth()->id() ? 'gazda' : 'oaspetele' }}
+                </a>
+            @endif
             @if ($this->canReview)
                 <a href="{{ route('bookings.review', $booking) }}"
                    class="ml-auto bg-indigo-600 text-white text-sm font-semibold px-3 py-1.5 rounded hover:bg-indigo-700"

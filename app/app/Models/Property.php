@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,8 +22,9 @@ class Property extends Model implements Auditable, HasMedia
     use AuditableTrait, HasFactory, InteractsWithMedia, SoftDeletes;
 
     protected $fillable = [
-        'host_id', 'slug', 'title', 'description', 'property_type',
+        'host_id', 'preferred_provider_id', 'slug', 'title', 'description', 'property_type',
         'address', 'city', 'county', 'country', 'postal_code',
+        'latitude', 'longitude',
         'base_price', 'currency', 'cleaning_fee',
         'max_guests', 'bedrooms', 'beds', 'bathrooms',
         'check_in_time', 'check_out_time', 'min_nights', 'max_nights',
@@ -33,11 +35,42 @@ class Property extends Model implements Auditable, HasMedia
         'base_price' => 'decimal:2',
         'cleaning_fee' => 'decimal:2',
         'rating_avg' => 'decimal:2',
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
     ];
 
+    /**
+     * @return BelongsTo<Host, $this>
+     */
     public function host(): BelongsTo
     {
         return $this->belongsTo(Host::class);
+    }
+
+    /**
+     * Properties visible to guests: published, owned by a KYC-approved host
+     * whose owner holds an active platform subscription.
+     *
+     * @param  Builder<Property>  $query
+     * @return Builder<Property>
+     */
+    public function scopePubliclyVisible(Builder $query): Builder
+    {
+        return $query
+            ->where('status', 'published')
+            ->whereHas('host', fn (Builder $hostQuery): Builder => $hostQuery
+                ->where('kyc_status', 'approved')
+                ->has('user.subscriptions', '>=', 1)
+                ->whereHas('user.subscriptions', fn (Builder $subscription): Builder => $subscription
+                    ->where('type', 'host')
+                    ->where(fn (Builder $state): Builder => $state
+                        ->whereIn('stripe_status', ['active', 'trialing'])
+                        ->orWhere('ends_at', '>', now()))));
+    }
+
+    public function preferredProvider(): BelongsTo
+    {
+        return $this->belongsTo(Provider::class, 'preferred_provider_id');
     }
 
     public function amenities(): BelongsToMany
@@ -85,11 +118,11 @@ class Property extends Model implements Auditable, HasMedia
     public function registerMediaConversions(?Media $media = null): void
     {
         $this->addMediaConversion('thumb')
-            ->fit(Fit::Crop, 400, 300)
-            ->nonQueued();
+            ->nonQueued()
+            ->fit(Fit::Crop, 400, 300);
 
         $this->addMediaConversion('medium')
-            ->fit(Fit::Contain, 1200, 900)
-            ->nonQueued();
+            ->nonQueued()
+            ->fit(Fit::Contain, 1200, 900);
     }
 }

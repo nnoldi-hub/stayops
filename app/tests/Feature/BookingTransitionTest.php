@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Host;
 use App\Models\Property;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -18,7 +19,7 @@ class BookingTransitionTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->seed(RolesAndPermissionsSeeder::class);
     }
 
     private function makeBooking(array $overrides = []): Booking

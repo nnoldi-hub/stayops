@@ -9,10 +9,18 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
+use Spatie\Permission\Models\Role;
 
 class Provider extends Model implements Auditable
 {
     use AuditableTrait, HasFactory, SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::saved(function (Provider $provider): void {
+            $provider->user?->assignRole(Role::findOrCreate('Provider', 'web'));
+        });
+    }
 
     protected $fillable = [
         'user_id', 'company_name', 'cui', 'service_types', 'coverage_cities',
@@ -26,6 +34,9 @@ class Provider extends Model implements Auditable
         'is_active' => 'boolean',
     ];
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

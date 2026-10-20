@@ -21,16 +21,16 @@ class StripeConnectService
         }
 
         $account = $this->stripe->accounts->create([
-            'type'    => 'express',
+            'type' => 'express',
             'country' => $host->billing_country ?: 'RO',
-            'email'   => $host->user->email,
+            'email' => $host->user->email,
             'metadata' => [
-                'host_id' => $host->id,
+                'host_id' => (string) $host->id,
             ],
         ]);
 
         $host->update([
-            'stripe_account_id'     => $account->id,
+            'stripe_account_id' => $account->id,
             'stripe_account_status' => 'pending',
         ]);
 
@@ -43,10 +43,10 @@ class StripeConnectService
     public function createOnboardingLink(Host $host, string $returnUrl, string $refreshUrl): string
     {
         $link = $this->stripe->accountLinks->create([
-            'account'     => $host->stripe_account_id,
+            'account' => $host->stripe_account_id,
             'refresh_url' => $refreshUrl,
-            'return_url'  => $returnUrl,
-            'type'        => 'account_onboarding',
+            'return_url' => $returnUrl,
+            'type' => 'account_onboarding',
         ]);
 
         return $link->url;
@@ -64,14 +64,14 @@ class StripeConnectService
         $account = $this->stripe->accounts->retrieve($host->stripe_account_id);
 
         $status = match (true) {
-            $account->charges_enabled  => 'active',
+            $account->charges_enabled => 'active',
             $account->details_submitted => 'restricted',
-            default                    => 'pending',
+            default => 'pending',
         };
 
         $host->update([
             'stripe_account_status' => $status,
-            'onboarded_at'          => $account->charges_enabled ? ($host->onboarded_at ?? now()) : null,
+            'onboarded_at' => $account->charges_enabled ? ($host->onboarded_at ?? now()) : null,
         ]);
 
         return $host->fresh();

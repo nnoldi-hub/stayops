@@ -4,8 +4,8 @@ namespace App\Filament\Resources\Properties\Schemas;
 
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\SpatieMediaLibraryFileUpload;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Schema;
 
@@ -18,6 +18,12 @@ class PropertyForm
                 Select::make('host_id')
                     ->relationship('host', 'id')
                     ->required(),
+                Select::make('preferred_provider_id')
+                    ->label('Firmă mentenanță preferată')
+                    ->relationship('preferredProvider', 'company_name')
+                    ->placeholder('Alocare automată')
+                    ->searchable()
+                    ->preload(),
                 TextInput::make('slug')
                     ->required(),
                 TextInput::make('title')
@@ -112,4 +118,3 @@ class PropertyForm
             ]);
     }
 }
-

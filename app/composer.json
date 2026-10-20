@@ -16,6 +16,7 @@
         "laravel/tinker": "^3.0",
         "livewire/volt": "^1.10",
         "owen-it/laravel-auditing": "^14.0",
+        "predis/predis": "^3.7",
         "spatie/laravel-backup": "^10.2",
         "spatie/laravel-medialibrary": "^11.22",
         "spatie/laravel-permission": "^7.4",
@@ -92,6 +93,9 @@
         "optimize-autoloader": true,
         "preferred-install": "dist",
         "sort-packages": true,
+        "platform": {
+            "php": "8.3.30"
+        },
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true

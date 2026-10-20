@@ -1,754 +1,282 @@
-# MRHM — Jurnal de Progres Dezvoltare
-
-> Document de urmărire a dezvoltării platformei **Management Regim Hotelier & Mentenanță**.
-> Se actualizează la fiecare sesiune de lucru. Fiecare task are status: ⬜ to-do / 🟦 in-progress / ✅ done / ⚠️ blocked.
-
----
-
-## 0. Decizii arhitecturale confirmate
-
-| Decizie | Alegere | Motiv |
-|---|---|---|
-| Backend framework | **Laravel 13.11** | Productivitate, ecosistem matur (latest stable) |
-| Frontend stack | **Livewire 3 + Alpine.js** | Monolitic, viteză de dev, fără SPA overhead |
-| Bază de date | **PostgreSQL 16 + PostGIS** | Geo queries, JSONB, performanță |
-| Cache & Queue | **Redis** + Laravel Horizon | Standard industrie |
-| Search | **PostgreSQL FTS** la MVP → **Meilisearch** post-lansare | Cost zero la start |
-| Plăți | **Stripe Connect** (split payments) | Comisioane platformă + payout direct la host |
-| Abonamente | **Laravel Cashier (Stripe)** | Integrare standard |
-| Admin panel | **Filament 3** | SuperAdmin rapid |
-| Storage | **DigitalOcean Spaces** (S3-compatible) | Cost mai mic decât AWS în EU |
-| Mail | **Mailgun** (tranzacțional) | Free tier generos |
-| SMS | **Twilio** + fallback WhatsApp Business | Pentru check-in codes |
-| Multi-tenancy | Single DB cu `host_id` discriminator | Simplitate operațională |
-| i18n | **RO + EN** de la început | Pregătire expansiune |
-| Mobile | **PWA** (nu nativ) | MVP rapid |
-| Deploy | **Laravel Forge** + DigitalOcean | Zero-downtime, SSL automat |
-| CI/CD | GitHub Actions (Pest + PHPStan L8 + Pint) | Calitate cod |
-| Locație proiect | `c:\n\MRHM\app\` | Separare cod / docs |
-| Dev environment | **Laravel Sail** (Docker-only) | User nu are PHP/Node/Composer local |
-| Runtime PHP image | **PHP 8.5** (Sail default) | Cel mai recent suportat de Laravel 13 |
-| Node runtime | **Node 24** (în imaginea Sail) | Vite + Tailwind |
-
----
-
-## 1. Etape & Milestones
-
-### 🟦 Etapa 0 — Pre-development & Setup
-- [x] ✅ Inițializare proiect **Laravel 13.11.2** în `app/` (via container `laravelsail/php83-composer`)
-- [x] ✅ Configurare PostgreSQL 16 + **PostGIS 3.4** local (Docker — image `postgis/postgis:16-3.4-alpine`)
-- [x] ✅ Redis 7 local (Docker)
-- [x] ✅ Mailpit local (Docker — SMTP test 1025, UI 8025)
-- [x] ✅ `.env` configurat (APP_NAME=MRHM, locale=ro, fallback=en, DB+Redis pe servicii Docker)
-- [x] ✅ `compose.yaml` Sail v1.60 + swap PostGIS
-- [x] ✅ Permissions fix pentru `storage/` și `bootstrap/cache/` (chown sail:sail)
-- [x] ✅ `APP_KEY` generat
-- [x] ✅ Migrațiile default Laravel rulate (users, cache, jobs)
-- [x] ✅ Extensia PostGIS activată în DB `mrhm`
-- [x] ✅ HTTP smoke test: `GET http://localhost → 200 OK`
-- [x] ✅ Git init + `.gitignore` + first commit (`6b2bc71`)
-- [x] ✅ Instalare pachete core: **Filament 5.6.5**, **spatie/laravel-permission 7.4.1**, **spatie/laravel-medialibrary 11.22.1**, **laravel/cashier 16.5.3**, **owen-it/laravel-auditing 14.0.3**, **laravel/fortify 1.37.2**, **laravel/horizon 5.47.0**, **spatie/laravel-backup 10.2.1**, **stripe/stripe-php 17.6.0** (115 pachete total)
-- [x] ✅ Dev tools: **larastan/larastan 3.9**, **barryvdh/laravel-ide-helper 3.7**
-- [x] ✅ `phpstan.neon` configurat (level 6, paths app/config/database/routes)
-- [x] ✅ Publicare migrații pachete: media, cashier (subscriptions, customer cols, passkeys, 2FA cols), audits, permissions
-- [x] ✅ Migrate rulat — toate tabelele create în DB
-- [x] ✅ Filament admin panel instalat (`/admin/login` → 200 OK), `AdminPanelProvider` generat
-- [x] ✅ Horizon installed (provider + config)
-- [x] ✅ Fortify config + Actions publicate
-- [ ] Configurare Pest + Pint (pint deja inclus în Laravel 13)
-- [x] ✅ GitHub Actions workflow CI (`.github/workflows/ci.yml` — PHP 8.3, Postgres+PostGIS, Redis, migrate + Pint + PHPStan + Pest)
-- [ ] ERD complet (diagramă)
-
-### 🟦 Etapa 1 — Fundație (Auth + RBAC + Migrații)
-- [x] ✅ Migrații complete pentru cele ~25 entități (9 fișiere noi: users+, hosts, providers/teams, amenities, properties+PostGIS, bookings+state_transitions, ical, tasks, business: reviews/plans/commissions/payouts/disputes/impersonation)
-- [x] ✅ PostGIS geography column `location` + index GIST pe `properties`
-- [x] ✅ Seederi: `RolesAndPermissionsSeeder` (4 roluri × 39 permisiuni), `AmenitiesSeeder` (27 amenities cu i18n RO/EN), `AdminUserSeeder` (`admin@mrhm.local` / `password`)
-- [x] ✅ Models Eloquent + relații: User (HasRoles), Host, Provider, Team, TeamMember, Property, PropertyPricingRule, Amenity, Booking (cu `ALLOWED_TRANSITIONS` state machine), BookingStateTransition, IcalFeed, IcalEvent, Task, Review (morphTo), Plan, Commission, Payout, Dispute, DisputeMessage, ImpersonationLog
-- [x] ✅ Auth (Laravel Breeze cu Blade) — Livewire 3 incompatibil cu Filament 5/Livewire 4, am ales blade stack
-- [x] ✅ 4 roluri create: `SuperAdmin`, `Host`, `Provider`, `Guest` (permisiuni sincronizate)
-- [x] ✅ Middleware aliases `role`, `permission`, `role_or_permission` înregistrate în `bootstrap/app.php`
-- [x] ✅ Audit log: trait `OwenIt\Auditing\Auditable` atașat pe Booking, Property, Host, Provider, Task, Dispute, Payout; tabel `audits` activ
-- [ ] 2FA pentru SuperAdmin & Host (laravel/fortify — config publicat)
-- [x] ✅ i18n setup: `lang/ro/app.php` + `lang/en/app.php` (common, navigation, booking statuses)
-- [x] ✅ BookingObserver — validează tranziții și log automat în `booking_state_transitions`
-- [x] ✅ Teste: 7 unit (state machine) + 3 feature (transition logging, invalid transition rejection, happy path lifecycle) — toate verzi
-
-### ⬜ Etapa 2 — Properties + Search
-- [ ] CRUD Properties (Host dashboard Livewire)
-- [ ] Upload galerie (MediaLibrary + Spaces)
-- [ ] Amenities (many-to-many)
-- [ ] Search geo (PostGIS `ST_DWithin`) cu index GIST
-- [ ] Filtre: dată, oaspeți, preț, rating
-- [ ] Pagina publică proprietate + Google Maps embed
-- [ ] Recenzii (model + UI)
-
-### ⬜ Etapa 3 — Booking Engine ⚠️ CRITIC
-- [ ] State machine booking (`pending → confirmed → checked_in → checked_out → cancelled / refunded`)
-- [ ] Algoritm anti-overbooking (DB lock `FOR UPDATE` + buffer 1h)
-- [ ] iCal import (parser + cron 5 min)
-- [ ] iCal export (feed `.ics` per property)
-- [ ] Flow rezervare guest (search → select → checkout)
-- [ ] Reconciliere periodică cu surse externe
-- [ ] **Pest tests** pentru concurență (obligatoriu)
-
-### ⬜ Etapa 4 — Plăți (Stripe Connect)
-- [ ] Onboarding host ca Connected Account
-- [ ] Checkout cu `application_fee` (comision platformă)
-- [ ] Webhooks: `payment_intent.*`, `account.updated`, `payout.paid`, `charge.refunded`
-- [ ] Refund flow
-- [ ] Facturi PDF (DomPDF)
-- [ ] Subscription pentru hosts (Cashier — plan Basic/Premium)
-
-### ⬜ Etapa 5 — Mentenanță
-- [ ] Tasks engine + event `BookingCheckedOut → CreateCleaningTask`
-- [ ] Reguli de auto-asignare (host → provider preferat)
-- [ ] Provider dashboard (Livewire)
-- [ ] Proof of work (before/after photos)
-- [ ] Sub-roluri în firmă (team members)
-- [ ] Raport lunar provider → host (PDF)
-
-### ⬜ Etapa 6 — SuperAdmin (Filament)
-- [ ] Resources pentru toate entitățile
-- [ ] User Impersonation + audit log
-- [ ] KYC approval workflow (CUI / CI upload)
-- [ ] Dispute management
-- [ ] Plans configurator
-- [ ] Dashboard: MRR, Churn, GMV, bookings
-- [ ] Alertă "host inactiv > 7 zile"
-
-### ⬜ Etapa 7 — Notificări, Hardening, Lansare
-- [ ] Mailgun integration + templates
-- [ ] Twilio SMS (check-in codes)
-- [ ] WhatsApp Business fallback
-- [ ] Rate limiting + throttling
-- [ ] Cloudflare WAF
-- [ ] Backup automat DB (zilnic) + S3 lifecycle
-- [ ] Forge deploy + zero-downtime
-- [ ] Horizon monitoring
-- [ ] PWA manifest + service worker
-- [ ] Launch checklist (smoke tests pe production)
-
----
-
-## 2. Stack tehnic complet
-
-```
-PHP 8.3
-Laravel 11.x
-Livewire 3.x
-Filament 3.x
-PostgreSQL 16 + PostGIS 3.4
-Redis 7
-Node 20 (Vite + TailwindCSS 3)
-```
-
-**Pachete Composer principale:**
-- `filament/filament` — admin panel
-- `livewire/livewire` — UI reactive
-- `spatie/laravel-permission` — RBAC
-- `spatie/laravel-medialibrary` — uploads
-- `laravel/cashier` — subscriptions Stripe
-- `stripe/stripe-php` — Connect API
-- `owen-it/laravel-auditing` — audit log
-- `laravel/horizon` — queue monitor
-- `laravel/fortify` — 2FA
-- `spatie/laravel-backup` — DB backups
-- `stechstudio/filament-impersonate`
-- `mpociot/laravel-apidoc` (opțional, dacă expunem API)
-
-**Dev tools:**
-- `pestphp/pest` + `pestphp/pest-plugin-laravel`
-- `larastan/larastan` (PHPStan L8)
-- `laravel/pint`
-- `barryvdh/laravel-debugbar` (dev only)
-
----
-
-## 3. Schema bazei de date (entități)
-
-```
-users (id, email, password, phone, locale, 2fa_secret, ...)
-roles, permissions, role_user, permission_role  [spatie]
-audit_logs                                        [owen-it]
-impersonation_logs (admin_id, target_id, started_at, ended_at, reason)
-
-hosts (user_id, company_name, cui, kyc_status, kyc_documents, stripe_account_id)
-providers (user_id, company_name, cui, kyc_status, service_types[])
-teams (provider_id, name)
-team_members (team_id, user_id, role)
-
-properties (id, host_id, slug, title, description, address, city, country,
-            location POINT, base_price, currency, max_guests, bedrooms,
-            check_in_time, check_out_time, status, ...)
-property_media [polymorphic via MediaLibrary]
-amenities (id, slug, icon)
-property_amenities (property_id, amenity_id)
-property_pricing_rules (property_id, type, dates, price_modifier)
-
-bookings (id, property_id, guest_id, check_in, check_out, guests_count,
-          total_price, platform_fee, host_payout, currency,
-          status, source [direct|airbnb|booking], external_id,
-          stripe_payment_intent_id, created_at, ...)
-booking_state_transitions (booking_id, from, to, actor_id, at, reason)
-
-ical_feeds (id, property_id, direction [in|out], url, last_sync_at, last_error)
-ical_events (id, feed_id, uid, start, end, summary, raw)
-
-tasks (id, property_id, booking_id, type [cleaning|repair|inspection],
-       provider_id, assigned_to_user_id, status, priority,
-       scheduled_at, completed_at, cost, notes)
-task_media [polymorphic — before/after photos]
-
-reviews (id, booking_id, author_id, target_type, target_id, rating, comment)
-
-plans (id, slug, name, price, interval, features JSONB, stripe_price_id)
-subscriptions, subscription_items  [Cashier]
-
-commissions (id, booking_id, amount, percentage, status)
-payouts (id, host_id, stripe_transfer_id, amount, status)
-
-disputes (id, booking_id|task_id, opener_id, status, resolution)
-dispute_messages (dispute_id, sender_id, body, attachments)
-
-notifications  [Laravel native]
-```
-
-### 3.1. ERD — diagramă Mermaid
-
-```mermaid
-erDiagram
-    USERS ||--o| HOSTS : "owns (host_id)"
-    USERS ||--o| PROVIDERS : "owns (provider_id)"
-    USERS ||--o{ BOOKINGS : "guest_id"
-    USERS ||--o{ PASSKEYS : "owns"
-    USERS }o--o{ ROLES : "model_has_roles"
-    USERS }o--o{ PERMISSIONS : "model_has_permissions"
-    ROLES }o--o{ PERMISSIONS : "role_has_permissions"
-
-    HOSTS ||--o{ PROPERTIES : "host_id"
-    HOSTS ||--o{ PAYOUTS : "host_id"
-    HOSTS ||--o{ SUBSCRIPTIONS : "Cashier (billable)"
-
-    PROVIDERS ||--o{ TEAMS : "owner_provider_id"
-    TEAMS ||--o{ TEAM_MEMBERS : "team_id"
-    USERS ||--o{ TEAM_MEMBERS : "user_id"
-    PROVIDERS ||--o{ TASKS : "assigned_provider_id"
-
-    PROPERTIES ||--o{ BOOKINGS : "property_id"
-    PROPERTIES ||--o{ PROPERTY_PRICING_RULES : "property_id"
-    PROPERTIES ||--o{ ICAL_FEEDS : "property_id"
-    PROPERTIES ||--o{ ICAL_EVENTS : "property_id"
-    PROPERTIES ||--o{ TASKS : "property_id"
-    PROPERTIES ||--o{ REVIEWS : "property_id"
-    PROPERTIES }o--o{ AMENITIES : "property_amenities"
-
-    BOOKINGS ||--o{ BOOKING_STATE_TRANSITIONS : "booking_id (from→to, actor_id)"
-    BOOKINGS ||--o{ COMMISSIONS : "booking_id"
-    BOOKINGS ||--o{ DISPUTES : "booking_id"
-    BOOKINGS ||--o{ REVIEWS : "booking_id"
-    TASKS ||--o{ DISPUTES : "task_id"
-
-    DISPUTES ||--o{ DISPUTE_MESSAGES : "dispute_id"
-    USERS ||--o{ DISPUTE_MESSAGES : "sender_id"
-    USERS ||--o{ DISPUTES : "opener_id"
-
-    PLANS ||--o{ SUBSCRIPTIONS : "stripe_price_id"
-    SUBSCRIPTIONS ||--o{ SUBSCRIPTION_ITEMS : "subscription_id"
-
-    USERS ||--o{ IMPERSONATION_LOGS : "impersonator_id / impersonated_id"
-
-    %% Polymorphic (toate entitățile cu Auditable / HasMedia)
-    AUDITS }o--|| USERS : "user_id (actor)"
-
-    USERS {
-        bigint id PK
-        string name
-        string email UK
-        string password
-        string phone
-        string locale
-        text two_factor_secret
-        text two_factor_recovery_codes
-        timestamp two_factor_confirmed_at
-        timestamp email_verified_at
-    }
-
-    HOSTS {
-        bigint id PK
-        bigint user_id FK
-        string company_name
-        string cui
-        string kyc_status
-        json kyc_documents
-        string stripe_account_id
-        timestamp onboarded_at
-    }
-
-    PROVIDERS {
-        bigint id PK
-        bigint user_id FK
-        string trade_name
-        string service_radius_km
-        json service_categories
-    }
-
-    PROPERTIES {
-        bigint id PK
-        bigint host_id FK
-        string slug UK
-        string title
-        string property_type
-        string address
-        string city
-        decimal latitude
-        decimal longitude
-        decimal base_price
-        smallint max_guests
-        string status
-    }
-
-    BOOKINGS {
-        bigint id PK
-        string reference UK
-        bigint property_id FK
-        bigint guest_id FK
-        date check_in
-        date check_out
-        smallint nights
-        decimal total_price
-        string status
-        string payment_status
-        string stripe_payment_intent_id
-    }
-
-    BOOKING_STATE_TRANSITIONS {
-        bigint id PK
-        bigint booking_id FK
-        string from_state
-        string to_state
-        bigint actor_id FK
-        string reason
-        timestamp transitioned_at
-    }
-
-    TASKS {
-        bigint id PK
-        bigint property_id FK
-        bigint assigned_provider_id FK
-        string title
-        string category
-        string status
-        timestamp scheduled_at
-    }
-
-    DISPUTES {
-        bigint id PK
-        bigint booking_id FK
-        bigint task_id FK
-        bigint opener_id FK
-        string status
-        text resolution
-    }
-
-    AMENITIES {
-        bigint id PK
-        string slug UK
-        string name_ro
-        string name_en
-        string icon
-    }
-
-    PAYOUTS {
-        bigint id PK
-        bigint host_id FK
-        decimal amount
-        string status
-        timestamp paid_at
-    }
-
-    PLANS {
-        bigint id PK
-        string slug UK
-        string name
-        decimal monthly_price
-        string stripe_price_id
-    }
-```
-
-> Notă: relațiile polimorfice `audits` (OwenIt) și `media` (Spatie MediaLibrary) sunt atașate tuturor modelelor cu trait-ul corespunzător (Booking, Property, Host, Provider, Task, Dispute, Payout).
-
----
-
-## 4. Jurnal de sesiuni
-
-### Sesiune 2026-05-26 — Kickoff
-- ✅ Analiză plan inițial
-- ✅ Decizii arhitecturale confirmate
-- ✅ Document de progres creat
-- ✅ **Etapa 0 — Docker stack operațional**:
-  - Proiect Laravel 13.11.2 bootstrap via `laravelsail/php83-composer`
-  - Sail 1.60 + `compose.yaml` cu pgsql/redis/mailpit
-  - Swap imagine PostgreSQL → `postgis/postgis:16-3.4-alpine`
-  - 4 containere `Up`: `app-laravel.test-1`, `app-pgsql-1`, `app-redis-1`, `app-mailpit-1`
-  - `.env` ajustat (MRHM, locale ro/en, Redis pentru session/cache/queue, `WWWUSER`/`WWWGROUP=1000`)
-  - Permissions `storage/` + `bootstrap/cache/` reparate (chown `sail:sail`)
-  - `APP_KEY` generat, migrațiile default rulate (3 tabele Laravel default)
-  - Extensia `postgis` activată în DB `mrhm` → versiune 3.4 verificată
-  - HTTP smoke test: `GET http://localhost` → **200 OK** (70.4 KB welcome page)
-- **Notă perf**: Bind mount Windows este lent (~14s/request pentru welcome page). De rezolvat ulterior cu volum named pentru `vendor/` sau migrare în WSL2.
-- **Servicii UI accesibile**:
-  - App: http://localhost
-  - Mailpit (mail UI): http://localhost:8025
-  - PostgreSQL: `localhost:5432` (user `mrhm` / db `mrhm` / pass `secret`)
-- 🟦 Următor: Git init + instalare pachete core (Etapa 0 → finalizare) și apoi Etapa 1.
-
-### Sesiune 2026-05-26 (continuare) — Etapa 0 finalizată
-- ✅ **Git init** + `.gitignore` + commit `6b2bc71` ("Initial commit: MRHM Laravel 13 + Docker stack (Etapa 0)")
-- ✅ **Pachete core instalate** (9 directe + 106 tranzitive = 115 total):
-  - Filament 5.6.5 (admin panel)
-  - Spatie: laravel-permission 7.4.1, laravel-medialibrary 11.22.1, laravel-backup 10.2.1
-  - Laravel: cashier 16.5.3, fortify 1.37.2, horizon 5.47.0
-  - owen-it/laravel-auditing 14.0.3, stripe/stripe-php 17.6.0
-- ✅ **Dev tools**: larastan/larastan 3.9, barryvdh/laravel-ide-helper 3.7
-- ✅ **`phpstan.neon`** creat (level 6, paths app/config/database/routes)
-- ✅ **Vendor publish & migrate**: media_table, Cashier (subscriptions, subscription_items, customer columns, meter cols, passkeys, 2FA columns), audits, permission_tables — toate migrate cu succes
-- ✅ **Filament admin panel** instalat — `AdminPanelProvider` la `app/Providers/Filament/`, rute `/admin`, `/admin/login`, `/admin/logout` → HTTP **200 OK** pe `/admin/login`
-- ✅ **Horizon** (provider + config) + **Fortify** (config + Actions) publicate
-- **Notă debugging**: Composer install pe bind-mount Windows este lent (~5-10 min per pachet din cauza unzip-ului). Workaround: `COMPOSER_PROCESS_TIMEOUT=0`. Permisiunile pentru fișiere noi trebuie reaplicate după fiecare composer require: `chown -R sail:sail storage bootstrap/cache database config app routes lang`.
-- 🟦 Următor: Pest setup, user admin Filament, GitHub Actions CI, ERD, apoi Etapa 1 (migrații complete pentru cele ~25 entități, modele + factories, Breeze Livewire, RBAC cu 4 roluri).
-
-### Sesiune 2026-05-26 (continuare 2) — Etapa 1 fundație
-- ✅ **9 migrații noi** rulate cu succes (toate tabelele core MRHM):
-  - `add_profile_columns_to_users_table` (phone, locale, avatar, last_login)
-  - `create_hosts_table` (cu KYC, Stripe Connect)
-  - `create_providers_and_teams_tables` (providers, teams, team_members)
-  - `create_amenities_table`
-  - `create_properties_table` (cu `location geography(POINT, 4326)` + index GIST + pricing_rules + property_amenities pivot)
-  - `create_bookings_table` (cu state machine + booking_state_transitions)
-  - `create_ical_tables` (ical_feeds + ical_events)
-  - `create_tasks_table` (cleaning, repair, inspection)
-  - `create_business_tables` (reviews polimorfic, plans, commissions, payouts, disputes, dispute_messages, impersonation_logs)
-- ✅ **41 tabele publice** în DB (35 MRHM + 6 PostGIS metadata)
-- ✅ **3 seederi**:
-  - `RolesAndPermissionsSeeder` — 4 roluri (SuperAdmin, Host, Provider, Guest) cu 39 permisiuni mapate granular
-  - `AmenitiesSeeder` — 27 amenități (basic, kitchen, bathroom, outdoor, safety, family) cu nume RO+EN
-  - `AdminUserSeeder` — `admin@mrhm.local` / `password` cu rol SuperAdmin
-- ✅ **19 modele Eloquent** create cu relații complete:
-  - User actualizat cu `HasRoles` (Spatie) + casts pentru profile cols
-  - Host, Provider, Team, TeamMember, Amenity, Property (cu morphMany reviews), PropertyPricingRule
-  - Booking (constante `STATUSES` + `ALLOWED_TRANSITIONS` pentru state machine + helper `canTransitionTo()`)
-  - BookingStateTransition, IcalFeed, IcalEvent, Task, Review (morphTo target), Plan, Commission, Payout, Dispute, DisputeMessage, ImpersonationLog
-- ✅ **i18n stubs**: `lang/ro/app.php` + `lang/en/app.php` (common UI, navigation, booking statuses)
-- ✅ **GitHub Actions CI**: `.github/workflows/ci.yml` cu matrix Postgres+PostGIS+Redis, rulează Pint + PHPStan + Pest pe push/PR în main/develop
-- ✅ **Verificare smoke** prin script PHP: User SuperAdmin → 39 permisiuni, 27 amenities, 8 statusuri booking corecte
-- ✅ **Filament `/admin/login` → HTTP 200 OK** după migrate+seed
-
-### Sesiune 2026-05-26 (continuare 3) — Etapa 1 finalizare (auth + audit + observer + teste)
-- ✅ **Laravel Breeze blade** instalat (stack Livewire 3 incompatibil cu Filament 5 care folosește Livewire 4 — am switch-at la blade; rutele auth `/login`, `/register`, `/forgot-password`, `/profile` + Vite build OK)
-- ✅ **Middleware aliases** Spatie înregistrate în `bootstrap/app.php`: `role`, `permission`, `role_or_permission`
-- ✅ **`OwenIt\Auditing` activat**:
-  - Config publicat (`config/audit.php`)
-  - Migration `create_audits_table` (făcut idempotent cu `Schema::hasTable` pentru a tolera tabelul preexistent)
-  - Trait `Auditable` atașat pe **Booking, Property, Host, Provider, Task, Dispute, Payout** (interfață `OwenIt\Auditing\Contracts\Auditable`)
-- ✅ **BookingObserver** (`app/Observers/BookingObserver.php`):
-  - `updating()` → validează tranziția față de `Booking::ALLOWED_TRANSITIONS`, aruncă `InvalidArgumentException` la tranziții invalide
-  - `updated()` → log automat în `booking_state_transitions` cu `from_state`, `to_state`, `actor_id`, `reason`, `transitioned_at`
-  - Înregistrat în `AppServiceProvider::boot()`
-- ✅ **PostGIS extension migration** `2026_05_26_069999_enable_postgis_extension.php` (`CREATE EXTENSION IF NOT EXISTS postgis`) — necesar pentru DB-ul `testing` care nu avea extensia
-- ✅ **Pest/PHPUnit teste verzi**:
-  - `tests/Unit/BookingStateMachineTest.php` — 6 teste (43 assertions): tranziții permise per status, stare terminală `refunded`, integritate map STATUSES↔ALLOWED_TRANSITIONS
-  - `tests/Feature/BookingTransitionTest.php` — 3 teste (RefreshDatabase + seed roles): tranziție validă loghează, tranziție invalidă aruncă & nu loghează, happy path complet 3 tranziții
-  - Total: **10 teste verzi, 47 assertions** rulează în ~63s pe DB testing
-- ✅ **CI ajustat**: workflow folosește `php artisan test` (PHPUnit) în loc de Pest CLI (Pest nu este instalat ca dep dedicat, runner-ul Laravel îl suportă oricum)
-- **Note**: Breeze Livewire amânat până la upgrade compatibil sau înlocuire cu volt-4. Factories încă nu sunt scrise (modele create manual în teste). Anti-overbooking cu DB lock urmează în Etapa 3.
-- ✅ **Filament resources generate** pentru 7 modele via `make:filament-resource ... --generate`:
-  - `Hosts/HostResource`, `Properties/PropertyResource`, `Bookings/BookingResource`, `Tasks/TaskResource`, `Disputes/DisputeResource`, `Plans/PlanResource`, `Amenities/AmenityResource`
-  - Form + Table schemas auto-derivate din coloanele DB (split classes Filament 5.x: `Schemas/*Form`, `Tables/*Table`, `Pages/{List,Create,Edit}*`)
-  - Configurate manual: `navigationLabel`, `modelLabel`, `pluralModelLabel` în RO, `navigationGroup` (Marketplace / Operațional / Configurare), `navigationSort`, `recordTitleAttribute` (reference / title / name_ro)
-  - Admin panel verificat HTTP 200 după `config:clear && view:clear && cache:clear`
-- ✅ **Factories Eloquent**: `HostFactory`, `PropertyFactory`, `BookingFactory` (cu states `pending`/`confirmed`); `UserFactory` exista deja
-- ✅ **Anti-overbooking** via `App\Services\BookingService::create()`:
-  - `DB::transaction` cu `Property::lockForUpdate()` (row-level lock per property)
-  - Detecție overlap în aceeași tranzacție (`check_in < new.check_out AND check_out > new.check_in`) cu `lockForUpdate` pe bookings
-  - Statusurile active blocante: `pending`, `confirmed`, `checked_in`; cancelled/refunded/no_show/checked_out/disputed nu blochează
-  - Aruncă `RuntimeException("Overbooking refuzat…")`
-- ✅ **`tests/Feature/BookingOverbookingTest.php`** — 4 teste verzi:
-  - first booking creates OK
-  - overlapping booking → RuntimeException
-  - adjacent booking (check_out == check_in) → allowed
-  - cancelled booking nu blochează slot-ul
-- ✅ **Total teste: 13 verzi (53 assertions), durată ~46s**
-- ✅ **Redirect post-login per rol** (`App\Support\RoleRedirector::pathFor()`):
-  - `SuperAdmin → /admin`, `Host → /host`, `Provider → /provider`, default → `/dashboard`
-  - Integrat în `AuthenticatedSessionController::store()`
-  - Rute placeholder `/host`, `/provider` cu middleware `role:Host` / `role:Provider` (vor primi UI proprie în Etapele 4-5)
-- ✅ **`tests/Feature/RoleRedirectTest.php`** — 5 teste verzi (SuperAdmin, Host, Provider, Guest fallback, no-role fallback)
-- ✅ **Total teste cumulat: 18 verzi (63 assertions)**
-- ✅ **2FA fundație via Laravel Fortify ^1.37**:
-  - `composer require laravel/fortify` + `FortifyServiceProvider` înregistrat în `bootstrap/providers.php`
-  - `User` implementează `FilamentUser` (cu `canAccessPanel()` care permite doar `SuperAdmin` în panel-ul `admin`) și folosește trait-ul `TwoFactorAuthenticatable`
-  - `config/fortify.php` redus la doar `Features::twoFactorAuthentication([confirm, confirmPassword])` (registration/login/profile/passkeys eliminate — le gestionează Breeze)
-  - `Fortify::ignoreRoutes()` pentru a evita conflictele cu Breeze
-  - Migrații 2FA + passkeys deja aplicate (`add_two_factor_columns_to_users_table`, `create_passkeys_table`)
-  - Coloanele `two_factor_secret`, `two_factor_recovery_codes` adăugate în `#[Hidden]`
-- ✅ **Middleware `EnsureTwoFactorAuthenticated`** (alias `require_2fa`):
-  - Pentru rolurile `SuperAdmin` și `Host`, redirecționează la `/two-factor-setup` dacă 2FA nu este confirmat
-  - Aplicat pe Filament admin panel (`AdminPanelProvider::authMiddleware`) și pe ruta `/host`
-  - Pagină placeholder `/two-factor-setup` (view Breeze) explicând că UI completă urmează
-- ✅ **`tests/Feature/TwoFactorAuthenticationTest.php`** — 7 teste verzi (trait, coloane, redirect SuperAdmin/Host, Provider nu necesită 2FA, accesibil cu 2FA confirmat, no-loop pe setup)
-- ✅ **Total teste cumulat: 50 verzi (136 assertions), durată ~79s**
-- ✅ **ERD diagram Mermaid** adăugat în secțiunea 3.1 (entități domeniu + relațiile lor: USERS, HOSTS, PROVIDERS, PROPERTIES, BOOKINGS, BOOKING_STATE_TRANSITIONS, TASKS, DISPUTES, COMMISSIONS, PAYOUTS, PLANS, AMENITIES, PASSKEYS, ROLES/PERMISSIONS)
-
-### Sesiune — Etapa 2 (6a.1): Property MediaLibrary integration
-- ✅ **`Property` model** — `implements HasMedia` + `use InteractsWithMedia` (Spatie MediaLibrary 11)
-  - Colecții: `photos` (multi-file, disk `public`, mime: jpeg/png/webp) și `floor_plans` (single-file, mime: jpeg/png/webp/pdf)
-  - Conversii: `thumb` (Crop 400×300) + `medium` (Contain 1200×900), nonQueued
-- ✅ **`tests/Feature/PropertyMediaTest.php`** — 4 teste verzi: atașare foto la colecția `photos`, multi-photo, single-file pe `floor_plans` (înlocuire), URL generation
-- ✅ **Total teste cumulat: 54 verzi (146 assertions), durată ~86s**
-- 🟦 Următor (pas cu pas): (6a.2) Livewire + Volt + Property index/show public; (6a.3) Host-facing Property edit page cu upload foto; apoi (6b) Search PostGIS `ST_DWithin` + filtre amenities.
-
-### Sesiune — Etapa 2 (6a.2): Public Property pages (Volt)
-- ✅ **Volt 1.10** instalat (`composer require livewire/volt` + `volt:install`); `VoltServiceProvider` înregistrat, mount path `resources/views/livewire`
-- ✅ **Layout public** `resources/views/components/layouts/public.blade.php` (header cu logo + nav: Proprietăți / Login / Înregistrare / Dashboard)
-- ✅ **`/properties`** (Volt `properties.index`) — listă paginată (12/pag.), filtre live: search (titlu/descriere ILIKE), city, property_type, minGuests; doar `status = published`
-- ✅ **`/properties/{property:slug}`** (Volt `properties.show`) — galerie foto (`getMedia('photos')` cu conversia `medium`), descriere, specs (oaspeți/dormitoare/paturi/băi), listă dotări, sidebar preț + taxă curățenie; 404 pentru draft
-- ✅ Layout aplicat via `#[Layout('components.layouts.public')]`; root element unic `<div>` în template (cerință Livewire)
-- ✅ **`tests/Feature/PropertyPublicPagesTest.php`** — 6 teste verzi: acces public index, excludere draft din index, filtrare după city, filtrare după property_type (via `Volt::test()`), acces public show, 404 pe draft
-- ✅ **Total teste cumulat: 60 verzi (160 assertions), durată ~108s**
-- 🟦 Următor (pas cu pas): (6a.3) Host Property edit page cu upload foto (Livewire `WithFileUploads` sau Filament Resource cu SpatieMediaLibraryFileUpload); apoi (6b) Search PostGIS `ST_DWithin` + filtre amenities.
-
-### Sesiune — Etapa 2 (6a.3): Filament Property photo upload
-- ✅ **Plugin** `filament/spatie-laravel-media-library-plugin ^5.6` instalat
-- ✅ **`PropertyForm`** (Filament Schema):
-  - `SpatieMediaLibraryFileUpload::make('photos')` — colecția `photos`, disk `public`, `image()->multiple()->reorderable()->appendFiles()->responsiveImages()`, max 8MB, mime: jpeg/png/webp, `columnSpanFull()`
-  - `SpatieMediaLibraryFileUpload::make('floor_plans')` — colecția `floor_plans`, max 8MB, mime: jpeg/png/webp/pdf, `columnSpanFull()`
-  - `property_type` → `Select` cu opțiunile [apartment, house, villa, studio, cabin]
-  - `status` → `Select` cu [draft, published, paused, archived], default `draft`
-  - Eliminate: `TextInput::make('location')`, `rating_avg`, `reviews_count`; prefix `base_price` schimbat `$` → `RON`
-- ✅ **`PropertiesTable`** — adăugat `SpatieMediaLibraryImageColumn::make('cover')` (colecția `photos`, conversia `thumb`, circular) ca prima coloană; eliminat `TextColumn::make('location')`
-- ✅ **`tests/Feature/PropertyFilamentMediaTest.php`** — 4 teste verzi: render CreateProperty (form fields photos+floor_plans), upload `photos` via EditProperty, upload `floor_plan`, listare pagina `/admin/properties`. Admin actează cu rol SuperAdmin + 2FA confirmat (`two_factor_confirmed_at`) ca să treacă de middleware-ul `Require2FA`. Seed `RolesAndPermissionsSeeder` în `setUp()`.
-- ✅ **Total teste cumulat: 64 verzi (175 assertions), durată ~166s**
-- 🟦 Următor (pas cu pas): (6b) Search PostGIS `ST_DWithin` + filtre amenities pe `/properties`.
-
-### Sesiune — Etapa 2 (6b): Search PostGIS + filtre amenities
-- ✅ **`/properties` (Volt `properties.index`)** — adăugate proprietăți reactive: `lat`, `lng`, `radiusKm`, `amenities[]`
-- ✅ **Filtru geografic** `ST_DWithin(location, ST_SetSRID(ST_MakePoint(lng,lat), 4326)::geography, radius_metri)` via `whereRaw`; folosește indexul GIST existent pe `properties.location`
-- ✅ **Filtru amenities** — checkbox per `Amenity`; `whereHas` per ID în buclă → semantică AND (proprietatea trebuie să aibă **toate** dotările bifate)
-- ✅ **UI** — al doilea rând de filtre (lat/lng/rază km) + secțiune cu checkbox-uri din `Amenity::all()` sortate după `sort_order`, `name_ro`; reset paginare la schimbare filtru
-- ✅ **`tests/Feature/PropertyGeoSearchTest.php`** — 4 teste verzi:
-  - rază mică (50 km, București centru) include proprietatea din Centru, exclude pe cea din Cluj
-  - rază mare (500 km) include ambele
-  - filtru pe o singură dotare (`wifi`) — exclude proprietatea fără ea
-  - filtru pe două dotări (`wifi` + `parking`) — doar proprietatea care le are pe ambele (AND)
-- ✅ Setup test: `DB::statement` cu `ST_SetSRID(ST_MakePoint(?,?), 4326)::geography` pentru a popula `location`
-- ✅ **Total teste cumulat: 68 verzi (183 assertions), durată ~137s**
-- 🟦 Următor (pas cu pas): Booking flow public (calendar disponibilitate + checkout).
-
-### Sesiune — Etapa 2 (Booking flow public): /properties/{slug}/book + /bookings/{ref}
-- ✅ **Rute web** (`routes/web.php`):
-  - `Volt::route('/properties/{property:slug}/book', 'properties.book')->middleware(['auth','verified'])->name('properties.book')`
-  - `Volt::route('/bookings/{booking:reference}', 'bookings.show')->middleware(['auth'])->name('bookings.show')`
-- ✅ **Componentă Volt `properties.book`** (`resources/views/livewire/properties/book.blade.php`):
-  - Props: `Property $property`, `checkIn`, `checkOut`, `guestsCount=1`, `specialRequests`, `errorMessage`
-  - `mount()` validează `status==='published'` (404 altfel) + setează datele implicite (azi+1 / azi+3)
-  - `#[Computed] nights()`, `subtotal()`, `total()` — calcul reactiv pe baza `base_price * nights + cleaning_fee`
-  - `save(BookingService $service)` validează formularul și apelează `BookingService::create($property->id, [...checkIn/checkOut, guests_count, status=pending, payment_status=pending, source=direct...])`; capturează `\RuntimeException` (suprapunere) și redirecționează la `bookings.show` în caz de succes
-  - UI: formular date + sidebar breakdown preț cu `data-testid="confirm-booking"` și banner eroare `data-testid="overbooking-error"`
-- ✅ **Componentă Volt `bookings.show`** (`resources/views/livewire/bookings/show.blade.php`):
-  - Acces restricționat: doar guest-ul rezervării sau host-ul proprietății (403 altfel)
-  - Afișează referință, status, proprietate, interval, defalcare preț (testid-uri `booking-reference`, `booking-status`, `booking-total`)
-- ✅ **Link „Rezervă"** adăugat în `properties.show` (testid `book-button`) către `route('properties.book', $property)`
-- ✅ **`BookingService`** reutilizat: `DB::transaction` + `Property::lockForUpdate` + overlap check pe statusurile [pending, confirmed, checked_in]
-- ✅ **`tests/Feature/PublicBookingFlowTest.php`** — 6 teste verzi:
-  - guest neautentificat → redirect login pe pagina de booking
-  - user autentificat poate vedea pagina de booking
-  - user autentificat poate crea o rezervare (3 nopți × 200 RON + 50 cleaning = 650 RON, status `pending`)
-  - rezervare suprapusă peste interval [pending/confirmed/checked_in] respinsă cu mesaj „suprapune"
-  - pagina `bookings.show` vizibilă guest-ului proprietar
-  - pagina `bookings.show` interzisă altui user (403)
-- ✅ **Lecție tehnică**: `source` din enum-ul `bookings` are valorile `direct/airbnb/booking/vrbo/ical/manual` (nu `web`). În plus, `\RuntimeException` capturat în `save()` este o categorie largă — `QueryException` și `ModelNotFoundException` extind tot `RuntimeException`. Pe viitor: introducere `OverbookingException` custom pentru a izola eroarea de suprapunere de erorile DB.
-- ✅ **Total teste cumulat: 74 verzi (200 assertions), durată ~199s**
-- 🟦 Următor (pas cu pas): Review/Rating submission flow, Host dashboard CRUD properties, Notificări email (booking confirmat/anulat) sau Stripe checkout (payment_intent + webhook) — la alegerea utilizatorului.
-
-### Sesiune — Etapa 2 (Review/Rating submission flow): /bookings/{ref}/review
-- ✅ **Rută** (`routes/web.php`): `Volt::route('/bookings/{booking:reference}/review', 'bookings.review')->middleware(['auth','verified'])->name('bookings.review')`
-- ✅ **Componentă Volt `bookings.review`** (`resources/views/livewire/bookings/review.blade.php`):
-  - Props: `Booking $booking`, `rating=5`, `cleanliness/communication/accuracy/value` (nullable 1–5), `comment`
-  - `mount()` aplică triplu gate: 403 dacă user-ul nu e guest-ul rezervării, 403 dacă booking-ul nu e `checked_out`, 403 dacă există deja un Review pentru `(booking_id, author_id)`
-  - `save()` validează (rating 1–5 required, sub-rating-uri 1–5 nullable, comment ≤2000) și într-un `DB::transaction`: creează `Review` (polymorphic target = `Property`, `is_published=true`), recalculează agregatul `Review::avg(rating)+count` filtrat pe `is_published` și actualizează `properties.reviews_count` + `properties.rating_avg` (rotunjit la 2 zecimale)
-  - Redirecționează la `bookings.show` după trimitere
-- ✅ **Bookings.show extins**: `#[Computed] canReview()` returnează true doar pentru guest, status `checked_out`, fără review existent → afișează CTA `data-testid="leave-review-link"` „Lasă un review"
-- ✅ **`tests/Feature/ReviewSubmissionFlowTest.php`** — 7 teste verzi:
-  - guest neautentificat → redirect login pentru pagina de review
-  - alt user (non-guest) → 403
-  - booking în starea `pending` → 403 (nu poate review)
-  - guest trimite review valid (5/4/5/4/5 + comentariu) → Review creat, `properties.reviews_count=1`, `properties.rating_avg=5.00`
-  - duplicate review pentru același `(booking_id, author_id)` → 403
-  - validare rating peste 5 → `assertHasErrors(['rating'])`, niciun Review în DB
-  - CTA „Lasă un review" apare pe `bookings.show` după checkout
-- ✅ **Total teste cumulat: 81 verzi (220 assertions), durată ~336s**
-- 🟦 Următor (pas cu pas): Host dashboard CRUD properties, Notificări email (booking confirmat/anulat), Stripe checkout (payment_intent + webhook) sau alte priorități — la alegerea utilizatorului.
-
-### Sesiune — Etapa 2 (Host dashboard CRUD properties): /host + /host/properties/{create,edit}
-- ✅ **Rute** (`routes/web.php`) — grup `auth + verified + role:Host + require_2fa`:
-  - `Volt::route('/host', 'host.dashboard')->name('host.dashboard')`
-  - `Volt::route('/host/properties/create', 'host.properties.create')->name('host.properties.create')`
-  - `Volt::route('/host/properties/{property}/edit', 'host.properties.edit')->name('host.properties.edit')`
-- ✅ **Componentă Volt `host.dashboard`** (`resources/views/livewire/host/dashboard.blade.php`):
-  - Folosește `WithPagination` și `#[Computed] host()` (returnează `Host::where('user_id', auth id)->first()`)
-  - Listează **doar** proprietățile host-ului curent (`where host_id`), paginare 10/pagină, empty state vizibil când e listă goală
-  - `delete(int $propertyId)` filtrează prin `whereHas('host', user_id=auth id)` + `firstOrFail()` → SoftDelete cu confirmare Livewire (`wire:confirm`)
-- ✅ **Componentă Volt `host.properties.create`** (`resources/views/livewire/host/properties/create.blade.php`):
-  - Formular cu validare strictă: title/address/city `required`, `property_type` în [apartment,house,villa,studio,cabin], `status` în [draft,published,paused,archived], `country` size 2, `currency` size 3, `base_price/cleaning_fee` numerice, capacități integer pozitive
-  - `save()` rezolvă `Host` prin `user_id=auth id`, generează slug `Str::slug(title)-Str::random(6)`, setează `check_in_time=15:00 / check_out_time=11:00` și redirecționează la pagina de edit
-- ✅ **Componentă Volt `host.properties.edit`** (`resources/views/livewire/host/properties/edit.blade.php`):
-  - `mount()`: `abort_unless($property->host?->user_id === auth()->id(), 403)` (gate strict pe ownership)
-  - Pre-populează toate câmpurile din model; `save()` rulează aceleași reguli de validare și `update()`; redirecționează la dashboard
-- ✅ **`tests/Feature/HostDashboardCrudTest.php`** — 10 teste verzi:
-  - guest neautentificat → redirect login
-  - user cu rol non-Host → 403
-  - host vede doar proprietățile proprii (nu pe ale altora)
-  - empty state când host-ul nu are proprietăți
-  - host creează proprietate (Property creat cu host_id, slug, status `draft`)
-  - validare câmpuri obligatorii pe create (title/address/city) → niciun Property creat
-  - host editează propria proprietate (title, base_price, status `draft`→`published`)
-  - host **nu** poate accesa pagina de edit pentru proprietatea altui host → 403
-  - host șterge propria proprietate (SoftDelete prin `Property::query()->find()` returnează null după)
-  - host nu poate șterge proprietatea altui host (`ModelNotFoundException` din `firstOrFail`, proprietatea rămâne în DB)
-- ✅ **Patternul user-test pentru rute cu Host + 2FA**: factory `User` cu `two_factor_secret + two_factor_confirmed_at`, `assignRole('Host')`, apoi `Host::factory()->create(['user_id' => $user->id])`
-- ✅ **Total teste cumulat: 91 verzi (250 assertions), durată ~231s**
-- 🟦 Următor (pas cu pas): Notificări email (booking confirmat/anulat), Stripe checkout (payment_intent + webhook), Booking state transitions sau alte priorități — la alegerea utilizatorului.
-
-### Sesiune — Etapa 2 (Notificări email booking): BookingConfirmed / BookingCancelled
-- ✅ **Mailables** create în `app/Mail/`:
-  - `BookingConfirmedMail($booking)` — subject `Rezervarea ta a fost confirmată — {reference}`, view markdown `emails.bookings.confirmed`
-  - `BookingCancelledMail($booking, ?$reason)` — subject `Rezervarea ta a fost anulată — {reference}`, view markdown `emails.bookings.cancelled`
-- ✅ **Templates markdown** (`resources/views/emails/bookings/{confirmed,cancelled}.blade.php`) — folosesc componenta default `x-mail::message` (Laravel), afișează `guest_name`, `reference`, proprietate, interval, nopți, total
-- ✅ **`BookingService` extins** cu metode de tranziție de stare + trimitere mail:
-  - `confirm(Booking $b): Booking` — verifică `canTransitionTo('confirmed')`, aruncă `\DomainException` altfel; setează `status='confirmed'`; trimite `BookingConfirmedMail` la `guest_email` (skip dacă lipsește)
-  - `cancel(Booking $b, ?string $reason): Booking` — verifică `canTransitionTo('cancelled')`, setează `status='cancelled' + cancelled_at + cancellation_reason`; trimite `BookingCancelledMail` cu motivul
-- ✅ **Compatibil cu `BookingObserver` existent**: observer-ul aplică `Booking::ALLOWED_TRANSITIONS` (pending→confirmed/cancelled, confirmed→checked_in/cancelled/no_show, etc.) — orice salt nevalid din DB direct este blocat cu `InvalidArgumentException`
-- ✅ **`tests/Feature/BookingNotificationsTest.php`** — 5 teste verzi (cu `Mail::fake()` în `setUp`):
-  - confirmarea unui booking pending → status `confirmed` + `BookingConfirmedMail` trimis către `guest_email` cu `hasTo()` verificat
-  - confirmare după anulare → `\DomainException` + niciun mail trimis
-  - anulare cu motiv → status `cancelled`, `cancelled_at` setat, `cancellation_reason` salvat, mail conține motivul
-  - tentativă cancel pe booking `checked_out` (după parcurgerea pending→confirmed→checked_in→checked_out) → `\DomainException`
-  - confirmare cu `guest_email=null` → nu se trimite mail, dar status devine `confirmed`
-- ✅ **Lecție tehnică**: `BookingObserver` aplică tranziții valide la fiecare `save()`, deci în teste **nu** poți seta `status='checked_out'` direct dintr-un booking `pending` — trebuie parcurs lanțul `pending → confirmed → checked_in → checked_out` prin update-uri succesive.
-- ✅ **Total teste cumulat: 96 verzi (262 assertions), durată ~178s**
-- 🟦 Următor (pas cu pas): Stripe checkout (payment_intent + webhook), Booking state transitions UI (host confirm/cancel/check-in/out), Property gallery upload (Host) sau alte priorități — la alegerea utilizatorului.
-
-
-
-
-### Sesiune — Etapa 3 (Property gallery upload — Host): upload foto + plan etaj în /host/properties/{id}/edit
-- ✅ **Volt component `host.properties.edit`** extins cu `WithFileUploads`:
-  - `uploadPhotos()` — validare `image|mimes:jpeg,png,webp|max:5120` per fișier, max 10 fișiere simultan; adaugă în colecția `photos` via Spatie MediaLibrary
-  - `uploadFloorPlan()` — validare `mimes:jpeg,png,webp,pdf|max:10240`; adaugă în colecția `floor_plans` (single file — înlocuiește automat cel existent)
-  - `deletePhoto(int $mediaId)` — șterge o fotografie din colecția `photos` (verificat că aparține proprietății)
-  - `deleteFloorPlan()` — `clearMediaCollection('floor_plans')`
-- ✅ **UI gallery** în template edit:
-  - Grid cu thumb-uri foto existente (hover → buton ×)
-  - Input `multiple` pentru upload foto noi + buton submit separat
-  - Secțiune separată plan etaj cu preview + ștergere + upload nou
-- ✅ **`tests/Feature/HostPropertyGalleryTest.php`** — 7 teste verzi (11 assertions):
-  - host uploadează 2 fotografii → `getMedia('photos')` count=2
-  - upload fișier non-imagine → validation error, count=0
-  - host șterge o fotografie → count=0
-  - host uploadează plan etaj → `getFirstMedia('floor_plans')` != null
-  - plan etaj nou înlocuiește cel vechi → count=1, filename='second.jpg'
-  - host șterge plan etaj → count=0
-  - alt host nu poate accesa pagina de edit → 403
-- ✅ **Total teste cumulat: 116 verzi (293 assertions), durată ~350s**
-- 🟦 Următor: iCal sync (import rezervări din Airbnb/Booking.com via feed .ics).
-
-
-### Sesiune — Etapa 6 (Stripe Connect — Host onboarding): cont Express + onboarding link + refresh status
-- ✅ **pp/Models/User.php** extins: adăugat relația host(): HasOne
-- ✅ **pp/Services/StripeConnectService.php** (nou):
-  - createAccount(Host): Host — crează cont Stripe Express (idempotent; skip dacă stripe_account_id există); setează stripe_account_status='pending'
-  - createOnboardingLink(Host, returnUrl, refreshUrl): string — generează URL hosted onboarding via AccountLinks API
-  - efreshAccountStatus(Host): Host — retrieve cont din Stripe, sincronizează status (active/restricted/pending) și onboarded_at
-- ✅ **pp/Providers/AppServiceProvider.php** extins: bind StripeConnectService cu Cashier::stripe() în container
-- ✅ **esources/views/livewire/host/connect.blade.php** (nou, Volt component host.connect):
-  - #[Computed] host() — returnează uth()->user()->host
-  - startOnboarding() — crează cont dacă nu există, generează link onboarding, redirect
-  - efreshStatus() — apelează refreshAccountStatus, curăță errorMessage
-  - UI: badge status (active/pending/restricted/none), buton înregistrare/continuare, buton refresh
-- ✅ **outes/web.php** extins:
-  - GET /host/connect → host.connect (Volt)
-  - GET /host/connect/return → refreshAccountStatus + redirect host.connect
-  - GET /host/connect/refresh → generează nou onboarding link + redirect extern
-- ✅ **	ests/Feature/HostStripeConnectTest.php** — 12 teste (28 assertions):
-  - host vede pagina connect; guest → redirect login
-  - startOnboarding crează cont + redirect (mock StripeClient); skip createAccount dacă ID există
-  - startOnboarding → errorMessage la excepție Stripe
-  - refreshStatus apelează serviciul + curăță errorMessage
-  - return route → refreshAccountStatus + redirect host.connect
-  - service: createAccount salvează stripe_account_id + status=pending (idempotent)
-  - service: refreshAccountStatus → active când charges_enabled=true; restricted când details_submitted=true
-  - service: createOnboardingLink returnează URL corect
-- ✅ **Total teste cumulat: 143 verzi (353 assertions), durată ~343s**
-### Sesiune — Etapa 5 (iCal sync — Host): import rezervări din Airbnb/Booking.com via feed .ics
-- ✅ **pp/Services/IcalSyncService.php** (nou):
-  - parse(string ): array — parser RFC 5545 pur PHP: unfold continuation lines, extrage UID/DTSTART/DTEND/SUMMARY/DESCRIPTION din VEVENT
-  - sync(IcalFeed ): int — fetch HTTP, upsert IcalEvent (feed_id+uid unique), crează Booking cu source='ical'/status='confirmed' doar pentru evenimente noi; actualizează last_sync_at/events_count; stochează eroarea la eșec
-- ✅ **database/factories/IcalFeedFactory.php** (nou) — factory pentru IcalFeed cu states inactive()/out()
-- ✅ **esources/views/livewire/host/properties/ical.blade.php** (nou, Volt component host.properties.ical):
-  - Listează feed-uri direction=in ale proprietății
-  - ddFeed() — validare url+source_name, crează IcalFeed
-  - deleteFeed(int) — șterge feed-ul dacă aparține proprietății (findOrFail)
-  - syncFeed(int) — apelează IcalSyncService::sync(), afișează nr. rezervări noi importate
-- ✅ **outes/web.php** extins: GET /host/properties/{property}/ical → host.properties.ical
-- ✅ **	ests/Feature/IcalSyncTest.php** — 9 teste (service unit-style): parse correct/empty/folded-lines/missing-fields; sync crează event+booking; no duplicate la a doua rulare; actualizează feed metadata; eroare HTTP → stochează last_error+rethrow; feed inactiv → 0
-- ✅ **	ests/Feature/HostIcalFeedTest.php** — 6 teste (Volt component): host vede pagina; alt host → 403; adaugă feed valid; URL invalid → validation error; șterge feed; sync via component crează booking
-- ✅ **Total teste cumulat: 131 verzi (325 assertions), durată ~408s**
-- 🟦 Următor: Stripe Connect (host onboarding ca Connected Account).
-### Sesiune — Etapa 3 (Booking state transitions UI — Host): /host/bookings
-- ✅ **`BookingService::checkIn(Booking)`** — verifică `canTransitionTo('checked_in')`, setează `status='checked_in'`, aruncă `DomainException` la tranziție invalidă
-- ✅ **`BookingService::checkOut(Booking)`** — verifică `canTransitionTo('checked_out')`, setează `status='checked_out'`, aruncă `DomainException` la tranziție invalidă
-- ✅ **Volt component `host.bookings`** (`resources/views/livewire/host/bookings.blade.php`):
-  - Listează toate rezervările pentru proprietățile host-ului curent (paginare 15/pagină)
-  - Butoane contextuale: **Confirmă** (pending), **Anulează** (pending/confirmed), **Check-in** (confirmed), **Check-out** (checked_in)
-  - Modal inline de anulare cu câmp textarea pentru motiv (opțional, max 500 chars)
-  - Gate de ownership strict: `whereHas('property', host_id)` + `firstOrFail()` — host-ul nu poate acționa pe rezervările altui host
-- ✅ **Rută** `GET /host/bookings` în grupul `auth + verified + role:Host + require_2fa`
-- ✅ **`tests/Feature/HostBookingTransitionsTest.php`** — 11 teste verzi (13 assertions):
-  - guest neautentificat → redirect login
-  - non-Host → 403
-  - host vede doar rezervările proprii (nu pe ale altui host)
-  - confirm pending → `status='confirmed'`
-  - confirm rezervare altui host → `ModelNotFoundException` (403 implicit)
-  - cancel pending cu motiv → `status='cancelled'` + `cancellation_reason` salvat
-  - cancel confirmed (fără motiv) → `status='cancelled'`
-  - check-in confirmed → `status='checked_in'`
-  - check-in pending (invalid) → `DomainException`
-  - check-out checked_in → `status='checked_out'`
-  - check-out pending (invalid) → `DomainException`
-- ✅ **Total teste cumulat: 109 verzi (282 assertions), durată ~237s**
-- 🟦 Următor (pas cu pas): Property gallery upload (Host), iCal sync, Stripe Connect sau alte priorități.
-### Sesiune — Etapa 3 (Stripe checkout: payment_intent + webhook)
-- ✅ **`User` model** — adăugat trait `\Laravel\Cashier\Billable` (Laravel Cashier 16.5.3 / stripe-php 17.6.0) pentru `createOrGetStripeCustomer()`
-- ✅ **`BookingService::create()`** — dacă booking-ul are `guest_id` + `total_price`, creează automat un Stripe PaymentIntent via `Cashier::stripe()->paymentIntents->create(...)` și stochează `stripe_payment_intent_id` pe booking; erorile API Stripe sunt logate fără a bloca crearea booking-ului
-- ✅ **`StripeWebhookController`** (`app/Http/Controllers/StripeWebhookController.php`) — controller invokable, handler pentru evenimentul `payment_intent.succeeded`:
-  - Găsește booking după `stripe_payment_intent_id`, setează `payment_status='paid'`
-  - Apelează `BookingService::confirm()` dacă statusul curent permite tranziția
-  - Returnează `{"received": true}` cu 200 OK
-- ✅ **Rută webhook** (`routes/web.php`) — `POST /stripe/webhook` fără auth, exclusă din CSRF via `$middleware->validateCsrfTokens(except: ['/stripe/webhook'])` în `bootstrap/app.php`
-- ✅ **`.env`** — adăugate variabilele `STRIPE_PUBLIC_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (placeholder test keys — de înlocuit cu chei reale din Stripe Dashboard)
-- ✅ **`tests/Feature/StripeWebhookTest.php`** — 2 teste verzi (7 assertions):
-  - `payment_intent.succeeded` → booking `payment_status='paid'` + `status='confirmed'`
-  - webhook cu payment intent necunoscut → 200 OK ignorat silențios
-- ✅ **Total teste cumulat: 98 verzi (269 assertions), durată ~257s**
-- 🟦 Următor (pas cu pas): Booking state transitions UI (host confirm/cancel/check-in/out), Property gallery upload (Host), iCal sync (Airbnb/Booking import), Stripe Connect (onboarding host ca Connected Account) sau alte priorități — la alegerea utilizatorului.
----
-
-## 5. Backlog / idei post-MVP
-- API publică REST pentru integrări terțe
-- App nativă (Capacitor peste PWA)
-- Smart lock integration (Nuki, TTLock)
-- Dynamic pricing AI (sugestii de preț pe baza ocupării)
-- e-Factura ANAF integration
-- Multi-currency display + FX rates
-- Loyalty program guests
-- Channel manager extins (Vrbo, Expedia)
+# PROGRES — MRHM
+
+## Stare curentă (verificată local, 2026-10-19)
+
+- **Teste**: 242/242 PASS (625 assertions) — `php artisan test`
+- **Code style**: PASS — `php vendor/bin/pint --test`
+- **Static analysis**: PASS (Larastan / PHPStan level 6, 0 erori) — `php vendor/bin/phpstan analyse`
+- **Migrații**: 24 OK pe baza `mrhm`
+- **CI**: `.github/workflows/ci.yml` pe MySQL 8.4 (fără PostGIS), Redis, Pin+PHPStan+Teste
+- Repo: fără commit-uri noi (nu s-a cerut explicit).
+- Notă mediu: MySQL/Redis local nu pornesc cu sistemul — pornite manual din `C:\n\laragon\bin\`; Bitdefender Endpoint Security scanează ocazional executabilele noi (episoade de ~15-60s/proces, trec de la sine).
+
+## Decizii tehnice
+
+- **DB: MySQL nativ Laragon 8.4.3** (nu PostgreSQL/PostGIS). Geo-căutare prin **formulă Haversine** (`whereRaw`), fără `ST_DWithin`; anti-overbooking prin `lockForUpdate` în tranzacție, fără constrângere `EXCLUDE`.
+- **Redis 5.0.14.1** + client **predis** (`phpredis` DLL lipsește pe Windows).
+- **PHP 8.3.30** local; `composer.json` are `platform.php=8.3.30`.
+- **Horizon incompatibil pe Windows** (`ext-pcntl`/`ext-posix`); local se folosește `queue:work`. În CI (Linux) Horizon poate rula.
+- **Filament 5.10.2** — 2 panouri: `admin` (SuperAdmin) și `provider` (Provider). Panoul Host folosește Livewire/Volt (decizie existentă, păstrată).
+
+## Istoric
+
+### Sesiunea 1 — Baseline, portare MySQL, quality gates
+
+- Baseline restaurat: `git restore .` (HEAD `0f51f7b`).
+- Mediu local: PHP 8.3.30, MySQL 8.4.3 (3306), Redis (6379). DB create: `mrhm`, `testing`.
+- Portare DB → MySQL:
+  - Șters migrația PostGIS `2026_05_26_069999_enable_postgis_extension.php`.
+  - `properties`: `location geography(POINT,4326)` + GIST → `latitude`/`longitude decimal(10,7)` + index compus.
+  - `Property` (model): `latitude`/`longitude` în fillable + casts `decimal:7`.
+  - `properties.index` (Livewire): `ilike` → `like`; căutare pe rază prin Haversine cu guard `LEAST/GREATEST`.
+  - `PropertyGeoSearchTest` adaptat la lat/lng. `phpunit.xml` configurat pentru MySQL (`testing`).
+- Deps: `composer update` cu platform PHP 8.3.30 → Laravel 13.37.0, Livewire 4.4.7, Filament 5.10.2. `predis/predis ^3.7`.
+- Frontend: `npm ci` + `npm run build` (creat `public/build/manifest.json`).
+- Config: `.env` (MySQL/predis) + `.env.example` actualizat.
+- CI migrat Postgres+PostGIS → MySQL 8.4; adăugat `REDIS_CLIENT=predis`.
+- Fixuri teste (3 eșecuri inițiale, cauze la nivel de test):
+  - `PublicBookingFlowTest` — date dinamice (`now()->addDays(...)`).
+  - `HostDashboardCrudTest::test_host_cannot_delete_another_hosts_property` + `HostBookingTransitionsTest::test_host_cannot_confirm_booking_of_another_host` — `withoutExceptionHandling()` (Livewire 4.4.7: `ModelNotFoundException` → 404 prin handler).
+- Pint aplicat pe întreg codebase.
+
+### Sesiunea 2 — Panoul Filament Provider + curățenie static analysis
+
+**Panoul Provider (al 3-lea panou din plan):**
+- `app/Providers/Filament/ProviderPanelProvider.php` — panou `provider` la `/provider`, login, culoare Emerald, widget cont, middleware + `EnsureTwoFactorAuthenticated`.
+- `app/Filament/Provider/Resources/TaskResource.php` — resursă „Sarcini" scoped la sarcinile furnizorului curent (`assigned_to_user_id` = user curent SAU `provider.user_id` = user curent); `canCreate`/`canDelete` = false.
+- `app/Filament/Provider/Resources/Tasks/{Pages,Schemas,Tables}` — `ListTasks`, `EditTask`, form (status/cost/note), tabel cu acțiuni `start`/`complete` (tranziții status).
+- `User::canAccessPanel()` devine role-aware: `admin` → SuperAdmin, `provider` → Provider.
+- `User::provider()` (HasOne) adăugat.
+- Șters ruta placeholder `/provider` din `routes/web.php` (era `view('dashboard')`); `RoleRedirector` trimite deja Provider la `/provider`.
+- `ProviderFactory`, `TaskFactory` create.
+- `tests/Feature/ProviderPanelTest.php` — 5 teste: acces Provider, 403 pentru non-Provider, redirect guest, scoping pe `provider_id`, scoping pe `assigned_to_user_id`.
+
+**Extindere panou Provider (widget-uri + filtre):**
+- `Task::scopeVisibleToProviderUser(int|string|null $userId)` — scope reutilizabil (assigned direct SAU `provider.user_id`); folosit de `TaskResource` și widget-uri (DRY).
+- `app/Filament/Provider/Widgets/TaskStatsWidget.php` — card de statistici pe dashboard: „De început" (open+assigned), „În lucru" (in_progress), „Finalizate" (completed+verified), scoped la furnizor.
+- `app/Filament/Provider/Widgets/RecentCompletedTasksWidget.php` — `TableWidget` „Istoric recent (finalizate)": completed/verified/cancelled, paginat 5/10/25, cu status badge și cost real.
+- Filtre în `TasksTable`: `SelectFilter` status / tip / prioritate.
+- Widget-urile înregistrate în `ProviderPanelProvider::widgets()`.
+- `TaskResource` adnotat `@extends \Filament\Resources\Resource<Task>` (necesar ca Larastan să rezolve scope-ul pe `Builder<Task>`).
+- Teste adăugate în `ProviderPanelTest` (5): dashboard 200 + nav, widget-uri înregistrate, stats counts (10/11/18 scoped), istoric recent listează doar finalizate, filtrare tabelă pe status.
+- Notă: widget-urile de dashboard se randează ca **Livewire lazy** → conținutul lor nu apare în HTML-ul inițial al paginii; testarea se face cu `Livewire::test(...)`, nu `assertSee` pe pagină.
+
+### Sesiunea 3 — Auto-task curățenie la check-out (Etapa 3 din plan)
+
+**Dispecerat automat:** check-out-ul unei rezervări creează automat task-ul de curățenie.
+- `app/Events/BookingCheckedOut.php` — eveniment trimis din `BookingObserver::updated` la orice tranziție `→ checked_out` (indiferent de calea: Volt host, Filament admin, BookingService).
+- `app/Listeners/CreateCleaningTask.php` — listener înregistrat explicit în `AppServiceProvider::boot`:
+  - **Idempotent**: nu creează al doilea task dacă există deja unul (ne-anulat) pe aceeași rezervare; un task `cancelled` nu blochează recrearea.
+  - **Alocare provider** (regulile din plan „alocă-l Firmei X"):
+    1. `properties.preferred_provider_id` — firma preferată setată de host pe proprietate (doar dacă `is_active` + KYC `approved`);
+    2. fallback: primul provider activ/approved cu `service_types` conținând `cleaning` și `coverage_cities` acoperind orașul proprietății (match case-insensitive; `coverage_cities` gol = acoperire națională/universală);
+    3. niciunul → task `open` fără provider (apare în listă pentru atribuire manuală).
+  - `scheduled_at` = data check-out-ului + `properties.check_out_time`.
+- **Migrație** `2026_10_18_000001_add_preferred_provider_to_properties_table` → `properties.preferred_provider_id` FK nullable (`nullOnDelete`).
+- `Property::preferredProvider()` + `preferred_provider_id` în fillable; adnotare `@return BelongsTo<Property, $this>` pe `Booking::property()` (PHPStan).
+- **UI Host**: select „Firmă mentenanță preferată” în `host/properties/edit` (doar provideri activi + KYC approved, opțiunea goală = alocare automată), validare `exists:providers,id`.
+- **Filament admin**: `Select preferred_provider_id` (relationship, searchable, preload) în `PropertyForm`.
+- `tests/Feature/CheckoutCleaningTaskTest.php` — 12 teste: dispatch eveniment, task open fără provider, alocare la firma preferată, fallback pe oraș când preferatul e inactiv/neaprobat, match case-insensitive + excludere non-cleaning, provider cu acoperire goală, idempotență (check-out repetat), recreare după cancel, `scheduled_at` = check-out time, setare/clearare preferință din UI, tranziții non-check-out nu creează taskuri.
+- Decizie: chiar dacă listenerul e și auto-discoverabil (`app/Listeners`), e înregistrat **explicit** în `AppServiceProvider` — comportament determinist, fără surprize la rename.
+- `Booking::property()` adnotat cu generică — necesar ca Larastan să rezolve `$booking->property->city` etc.
+- Notă: `test_task_is_scheduled_at_property_check_out_time` acoperă integrarea `check_out_time` (coloana `time` MySQL → string `HH:MM:SS`).
+
+**Mediu (sesiunea 3):**
+- MySQL 8.4.3 + Redis 5.0.14.1 pornite manual (nu sunt servicii Windows); datadir MySQL = `C:\n\laragon\data\mysql-8.4`.
+- Episod de lentinoare cauzat de **Bitdefender Endpoint Security Tools** (scanare executabile noi: `php artisan` 20-70s, `redis-cli` 15s) — nu e codul; a trecut de la sine, testele au rulat 69s după.
+
+**Fixuri static analysis (PHPStan level 6 → 0 erori):**
+- `phpstan.neon`: eliminat opțiuni deprecated; adăugat `treatPhpDocTypesAsCertain: false`; `ignoreErrors` pe identificatorii `missingType.generics` / `missingType.iterableValue` (echivalentul modern al vechilor `checkGenericClassInNonGenericObjectType`/`checkMissingIterableValueType`).
+- `VerifyEmailController` — folosește `$request->fulfill()` (declanșează `Verified`, idiomatic; elimină nepotrivirea de tip `App\Models\User` vs contract `MustVerifyEmail`).
+- `Host::user()` — adnotat `@return BelongsTo<User, $this>` (rezolvă `$host->user->email`).
+- `Booking::canTransitionTo()` — guard defensiv păstrat, compatibil PHPStan.
+- `Property::registerMediaConversions()` — reordonat `->nonQueued()->fit(...)` (compatibilitate `@mixin ImageDriver`).
+- Stripe: valori `metadata` castate la `string`.
+- `routes/web.php` — guard-uri tip pentru `$host`; `routes/console.php` — eliminat scaffold-ul `inspire`.
+- `Filament\Provider\...\TaskResource::canDelete(Model $record)` — tip de parametru.
+
+### Sesiunea 4 — Echipe furnizor, Proof of Work, Facturare (documentată retroactiv)
+
+Cod existent în repo, verificat și acoperit de teste (11 teste, toate verzi):
+- **Echipe interne (`Teams`)**: `app/Filament/Provider/Resources/Teams/` — `TeamResource` scoped pe furnizorul curent, CRUD echipe, `MembersRelationManager` (adăugare/ștergere membri cu rol `lead`/`member`); delegare task către membru prin `assigned_to_user_id` în `TaskForm`.
+- **Proof of Work**: `Task` cu colecțiile MediaLibrary `before_photos` / `after_photos`; acțiunea `complete` din `TasksTable` refuză finalizarea fără poze „după" (notificare de eroare), completează `completed_at`.
+- **Facturare (`Invoicing`)**: pagină Filament `Provider\Pages\Invoicing` (`/provider/invoicing`) — raport lunar al task-urilor `completed`/`verified`, filtre pe proprietar și lună, sumar `actual_cost`.
+- Teste: `ProviderTeamManagementTest` (5), `ProviderTaskProofOfWorkTest` (3), `ProviderInvoicingTest` (5).
+
+### Sesiunea 6 — Teste + fix `Invoicing`
+
+- Adăugat `tests/Feature/ProviderInvoicingTest.php` (5 teste): acces panou, interzicere alt rol, doar task-uri `completed`/`verified` ale furnizorului, filtru pe proprietar, filtru pe lună.
+- **Bug real găsit și reparat** în `Provider\Pages\Invoicing`: filtrele `SelectFilter` foloseau `query(fn (Builder $query, ?string $value) => ...)`, dar Filament injectează starea filtrului **după numele parametrului** (`$state`/`$data`), nu după poziție → `$value` era mereu `null`, deci filtrul pe proprietar/lună nu funcționa niciodată (returna 0 rânduri). Reparat cu `array $state` + `when(filled($state['value'] ?? null), ...)`.
+
+### Sesiunea 5 — SuperAdmin: Impersonation + KYC approval workflow
+
+**Impersonation („Intră în cont"):**
+- `app/Services/ImpersonationService.php` — start/stop + `state()`; reguli: doar `users.impersonate` (SuperAdmin), nu pe sine, nu pe alt SuperAdmin, nu peste o impersonare activă; scrie `impersonation_logs` (admin, target, motiv, IP, UA, `started_at`); `Auth::login($target)` + `session()->regenerate()`; la stop setează `ended_at` și restaurează adminul.
+- `app/Http/Controllers/ImpersonationController.php` + rute: `POST /impersonation/{user}` (`permission:users.impersonate` + `require_2fa`), `POST /impersonation/stop`, `GET /impersonation/landing` (redirect rol-aware prin `RoleRedirector`).
+- `app/Filament/Actions/ImpersonateAction.php` — acțiune reutilizabilă de tabel (modal cu motiv), `successRedirectUrl` → landing; folosită în `HostsTable` și `ProvidersTable`.
+- **Banner** `resources/views/partials/impersonation-banner.blade.php` cu buton „Ieși din impersonare"; injectat în toate panourile Filament prin `FilamentView::registerRenderHook(PanelsRenderHook::BODY_START)` (în `AppServiceProvider`) și în layout-ul public (paginile Volt Host).
+- `EnsureTwoFactorAuthenticated` sare peste cerința de 2FA cât timp există impersonare activă — adminul nu e forțat în fluxul de setup 2FA al contului țintă (evită și setarea accidentală a 2FA pe contul victimei).
+- Teste: `SuperAdminImpersonationTest` (11) — start/stop, permisiuni, self/alt admin interzis, dublă impersonare interzisă, banner, `.withoutExceptionHandling` nu e nevoie (rutele întorc 403 curat), acțiune Filament.
+
+**KYC workflow:**
+- Admin: `HostsTable` + noua resursă `Providers\ProviderResource` (`/admin/providers`) primesc acțiunile `ApproveKycAction` / `RejectKycAction` (confirmare, vizibilitate condiționată de permisiunile `hosts.approve_kyc` / `providers.approve_kyc`), coloane `kyc_status` ca badge colorat.
+- Formulare admin: `kyc_status` devine `Select` cu etichete RO; `kyc_documents` devine `FileUpload` multiple pe discul `public`.
+- **Trimitere documente**:
+  - Host: pagină Volt `/host/verification` (`livewire/host/verification.blade.php`) — upload multiplu (JPG/PNG/PDF ≤5MB), status afișat, setează `kyc_status=submitted`; link + badge de status în dashboard.
+  - Provider: pagină Filament `/provider/verification` (`app/Filament/Provider/Pages/Verification.php`) cu acțiune de header pentru upload + submit.
+- **Gating public**: `Property::scopePubliclyVisible()` (publicat + host cu `kyc_status=approved`) folosit în `/properties`; `properties.show` și `properties.book` întorc 404 pentru proprietățile gazdelor neverificate.
+- Teste: `KycApprovalTest` (8) — approve/reject host+provider, audit (cu `audit.console=true`, altfel pachetul nu auditează în CLI), acces resursă admin; `KycVerificationTest` (9) — submit host (Volt) + provider (acțiune Filament), validare, link dashboard, vizibilitate publică.
+
+**Fixuri/decizii sesiunea 5:**
+- `Provider::user()` adnotat `@return BelongsTo<User, $this>` (PHPStan: `Model::hasRole()` pe relația nerexplicită).
+- Filament 5: `TextColumn::boolean()` nu există → `IconColumn::make(...)->boolean()`; `TextColumn::numeric(decimals: ...)` → `numeric(2)`; `TextColumn::separator()` absent → `formatStateUsing()`.
+- `php -r` a confirmat că `?A|?B` e sintaxă invalidă (uniune nulabilă se scrie `A|B|null`).
+- Ordinea rutelor contează: `POST /impersonation/stop` înaintea `POST /impersonation/{user}`.
+
+### Sesiunea 7 — Modulul SaaS (Cashier): abonamente forțate, application_fee, webhook, widget MRR/churn
+
+**Abonamente forțate pe host:**
+- `App\Http\Middleware\EnsureHostSubscription` (alias `subscription` în `bootstrap/app.php`) — verifică `User::hasActiveHostSubscription()`; rutele `/host/*` stau în grupul `['auth','verified','role:Host','require_2fa','subscription']`, cu excepția rutei `Volt::route('/host/subscription', ...)` (în afara gating-ului, ca să poți plăti).
+- `User::{hasActiveHostSubscription(), activeHostSubscription(), activeHostPlan()}` (plan rezolvat prin `subscriptions.stripe_price`); `Host::{hasActiveSubscription(), activePlan(), platformFeePct(), scopeWithActiveSubscription()}` — fallback comision = `config('services.stripe.platform_fee_pct')`.
+- `Property::scopePubliclyVisible()` extins: pe lângă `kyc_status=approved`, gazda trebuie să aibă **abonament activ** (gating și pentru `properties.show`/`book`).
+- `BookingService::create()` aruncă `RuntimeException` („Rezervare refuzata: ... nu apartine unei gazde cu abonament activ") la începutul tranzacției.
+- `HostSubscriptionService` — `startCheckout()` (Stripe Checkout `mode: subscription`, validare `is_active` + `stripe_price_id` gol → `InvalidArgumentException`), `cancel()` (Cashier `cancel()` = cancel at period end), `resolveCustomerId()`; `stripe()` **lazy** (`return Cashier::stripe();` — injectarea în constructor a fost eliminată: obliga cheie Stripe peste tot).
+- Pagina Volt `/host/subscription` (`resources/views/livewire/host/subscription.blade.php`): planuri, status, `subscribe($planId)`, `cancel()`, `?checkout=success|cancelled`, `data-testid`-uri; link „Abonament" în `host/dashboard.blade.php`.
+
+**Platform fee la rezervări:**
+- `BookingPaymentService::createPaymentIntent()` — `application_fee_amount` (procent din planul gazdei → fallback config) + `transfer_data.destination` doar dacă gazda are `stripe_account_id` și fee > 0; `customer` = `$guest->createOrGetStripeCustomer()->id` (Cashier creează/ia clientul Stripe).
+- `BookingService` primește `BookingPaymentService` prin constructor (autowire, fără binding); blocul Stripe inline a fost înlocuit cu apelul de serviciu în try/catch-ul existent (eroarea se loghează, rezervarea se creează).
+- Config: `config/services.php` → `stripe` (`webhook_secret`, `platform_fee_pct`), `config/cashier.php` minimal, `.env.example` + `STRIPE_PLATFORM_FEE_PCT=10`.
+
+**Webhook + metrici admin:**
+- `StripeWebhookController` primește branch `customer.subscription.*` → `syncSubscription()`: `Cashier::findBillable()` (doar `User`), `updateOrCreate` pe `stripe_id`, `update` pe `deleted`/`stripe_status`/`stripe_price`/`quantity`/`ends_at` (din `items.data[0].current_period_end ?? current_period_end`), `Log::warning` pentru customer necunoscut.
+- `App\Services\SubscriptionMetrics` — `activeQuery()`, `activeCount()`, `mrr()` (abonamente anuale / 12), `arr()`, `churn(30)` → `['canceled','rate']`.
+- `App\Filament\Widgets\SubscriptionMetricsWidget` (`StatsOverviewWidget`, `sort -20`): Stat „MRR", „Abonamente active", „Churn 30 zile".
+
+**Fixuri/găsiri sesiunea 7:**
+- `Host::factory()` creează **implicit** abonament activ (`Plan::firstOrCreate(slug: 'standard')` + `subscriptions()->firstOrCreate(stripe_id: sub_host_{user_id})`), precum `kyc_status => approved`; negativele se scriu explicit: `withoutSubscription()` (șterge) / `unsubscribed()` (status `canceled` + `ends_at` +14 zile). `PlanFactory` nou (`yearly()`, `inactive()`, `stripe_price_id`).
+- **Cum se mock-uiește Stripe în teste**: `Cashier::stripe()` apelează `app(StripeClient::class, ['config' => ...])`, iar `Container::resolve()` **sare peste instance-legate** când `$needsContextualBuild` (parametri ne-goli) → `$this->app->instance(StripeClient::class, $mock)` nu funcționează („api_key cannot be the empty string"). Corect: `$this->app->bind(StripeClient::class, fn () => $mock)` — binding buildable, ignoră parametrii contextuali.
+- `Volt::test(...)` **nu execută** middleware-ul de rută → gating-ul (2FA/abonament) se testează cu `$this->get(route(...))`; `BookingService::create()` necesită atribute complete (`nights`, `nightly_rate`, `subtotal`, `total_price` NOT NULL).
+- `Property::host()` adnotat `@return BelongsTo<Host, $this>` → permisă eliminarea hack-urilor `method_exists` din `BookingService` / `BookingPaymentService`.
+- `BookingService.php` linia ~62 conține caractere mojibake pre-existente (U+FFFD, bytes `EF BF BD`, UTF-8 valid) — **nu se ating** (edit-ul pe linia aia eșuează intenționat).
+- Teste noi (35): `HostSubscriptionGatingTest` (10), `HostSubscriptionPageTest` (8), `SubscriptionMetricsTest` (7), `StripeSubscriptionWebhookTest` (6), `ApplicationFeeTest` (4).
+
+**Gate-uri (2026-10-19):** 242/242 PASS (625 assertions, ~195s), Pint PASS, PHPStan level 6 → 0 erori.
+
+## Sesiunea 8 — Rebranding StayOps + landing public + demo + Command Center SuperAdmin
+
+**Rebranding + landing (finalizat, verificat):**
+- Identitate: „StayOps — Rezervări. Operațiuni. Mentenanță.", poziționare „Operating System for Short-Term Rentals"; culori Orange `#F97316` / Blue `#2563EB` / Navy `#0F172A` / Slate `#64748B`; fonturi Plus Jakarta Sans (display) + Inter (body), încărcate de pe fonts.bunny.net.
+- `tailwind.config.js` (brand.orange/blue/navy + scale slate, font-sans/font-display, shadow card); `APP_NAME=StayOps` (.env + .env.example); emailuri demo migrate `@mrhm.local` → `@stayops.local` (8 users + 2 bookings, script tinker șters după rulare); `AdminUserSeeder` → `admin@stayops.local`; fotografii demo regenerate cu text „StayOps"; 2FA secret `stayops-demo-...`.
+- `welcome.blade.php` rescris (hero navy, badge poziționare, 4 features, proprietăți, cum funcționează, stats, CTA, conturi demo); header/footer StayOps în `layouts/public.blade.php`; testid-uri (`featured-properties`, `demo-accounts`, `hero-search`) păstrate.
+- `DemoDataSeeder` idempotent + extins: emailuri `@stayops.local`, gardă `DatabaseSeeder` pe `app()->isLocal()`; `php artisan storage:link` ok.
+
+**Command Center SuperAdmin (`/admin`, finalizat):**
+- Pagină custom `App\Filament\Pages\Dashboard` (extend `Filament\Pages\Dashboard`): titlu/nav „Command Center", heading „Bun venit, {nume} 👋", subheading cu `now()->translatedFormat('d F Y')`, `getColumns(): 6`, `getWidgets()` cu ordine explicită; `Filament::getWidgets()` default e înlocuit per pagină.
+- 8 widgeturi (`app/Filament/Widgets/`): `KpiOverviewWidget` (sort -100, colSpan 6, 6 statistici: MRR/ARR/gazde/proprietăți/rezervări/taskuri), `NeedsAttentionWidget` (KYC, Stripe, dispute, taskuri întârziate → linkuri `/admin/hosts|disputes|tasks`), `MrrGrowthChartWidget` (line, `SubscriptionMetrics::mrrSeries(12)`), `BookingsChartWidget` (bar, check_in 12 luni), `FinancialSummaryWidget` (Venit SaaS/comisioane rezervări/mentenanță/total), `OperationalFlowWidget` (fluxul: rezervări active → check-out azi → taskuri create azi → finalizate azi → facturi), `MarketplaceOverviewWidget` (Gazde/Proprietăți/Firme+Echipe), `LiveActivityWidget` (polling 60s, merge 4 surse, sort desc, limit 8). Vizualizări în `resources/views/filament/widgets/*.blade.php` (wrapper `<x-filament-widgets::widget>` + `<x-filament::section>`).
+- Meniu grupat: `->navigationGroups(['Marketplace','Operațional','Financiar','Configurare'])` + `PlanResource` mutat în „Financiar" ca „Abonamente" (icon CreditCard); panou: `->brandName('StayOps')`, `->colors(['primary' => Color::Orange])`; `Filament::getWidgets()` default (AccountWidget/FilamentInfoWidget) eliminat — widgeturile se descoperă automat și se filtrează pe pagină.
+- `DemoDataSeeder::seedCommandCenterData()`: abonamente gazde backdate 9/5/2 luni (curbă MRR), 8 rezervări istorice (created_at = check_in − 2 zile) + 1 check-out azi, 4 taskuri întârziate + 3 finalizate recent cu `actual_cost`, 2 proprietăți draft, 3 dispute (open/investigating/resolved).
+
+**Rețeaua de build (găsire importantă — Filament v5 = Tailwind v4, aplicația = Tailwind v3):**
+- **Nu se poate build-ui un theme Filament în proiecte Tailwind v3**: `@import 'tailwindcss' source(none)` din `vendor/filament/.../resources/css/theme.css` e rezolvat de postcss-import ca fișier local („Unknown word use strict"); instalarea `@tailwindcss/vite` nu ajută fiindcă `postcss.config.js` global (v3) interceptează orice CSS build-uit → „use tailwindcss directly as a PostCSS plugin".
+- **Soluția adoptată**: `->viteTheme(...)` eliminat, Filament își încarcă tema default din `vendor/filament/filament/dist/theme.css` (compilată, înregistrată ca `Theme::make('app', ...)` în `FilamentServiceProvider`); fonturile StayOps + override-urile sidebar navy/orange se injectează prin `->renderHook(PanelsRenderHook::BODY_START, fn () => '<style>...</style>')` în `AdminPanelProvider` (CSS inline cu `!important` pe clasele `.fi-sidebar*`); `resources/css/filament/admin/theme.css` șters, `vite.config.js` revenit la 2 inputuri, `@tailwindcss/vite` dezinstalat, `npm run build` verde (58 kB CSS + 45 kB JS).
+- Widget-urile Filament se randează **lazy** (placeholder `fi-loading-section` + `x-intersect.__lazyLoad`) → testele nu pot asserta textul KPI în HTML-ul inițial; testele assertează markup-ul static (meniu grupat, heading, prezența style-ului `#0f172a` + font Bunny).
+
+**Teste noi (3):** `AdminDashboardCommandCenterTest` — SuperAdmin vede „Command Center"/subheading/stiluri, meniu grupat (Marketplace/Operațional/Financiar/Configurare/Abonamente), Host → 403 pe `/admin`.
+
+**Gate-uri (2026-10-19):** 245/245 PASS (636 assertions), Pint PASS, PHPStan level 6 → 0 erori, `npm run build` PASS, `DemoDataSeeder` re-rulează idempotent (13 rezervări, 10 taskuri).
+
+## Sesiunea 9 — Modulul de administrare a conturilor (Faza 1)
+
+**Audit inițial (constatări):** 4 roluri (SuperAdmin/Host/Provider/Guest) + workers (TeamMember, fără rol); nu exista resursă „Utilizatori" în `/admin`; **zero atribuiri de roluri în tot app-ul** (doar seedere) → Host/Provider nu puteau fi promovați din UI; `/register` crea user **fără niciun rol** (redirect pe dashboard placeholder); nu exista suspendare de cont (tabela `users` fără status); form Gazde/Firme doar link către un user inexistent de creat nicăieri. (Mojibake-ul din „output PowerShell" pe diacritice e doar artifact de consolă — fișierele sunt curate.)
+
+**Decizii (cu utilizatorul):** înregistrare = doar Guest (upgrade Host/Provider mai târziu, în Faza 2); resursa Utilizatori = acțiuni complete; Faza 2 = mesagerie + notificări + profil per tip cont.
+
+**Implementare:**
+- Migrare `2026_10_19_000100_add_status_to_users_table`: `status` (default `active`, index), `suspended_at`, `suspended_reason`.
+- `User`: `STATUS_ACTIVE/SUSPENDED`, `isSuspended()/suspend($reason)/activate()` (forceFill), `suspended_at` cast datetime, `email_verified_at` adăugat în `#[Fillable]` (formular Filament).
+- **`EnsureAccountActive`** middleware (web group append + `authMiddleware` ambele panele): cont suspendat → `Auth::logout()`, sesiune invalidată, redirect `/login` cu `errors.email` („Contul tău a fost suspendat. Motiv: …"); **skip pe sesiunea de impersonare** (`ImpersonationService::SESSION_KEY`) ca SuperAdmin-ul să poată investiga conturi suspendate. Fiindcă **panourile Filament NU rulează în grupul `web`** (au stack propriu de middleware — vezi `vendor/filament/filament/routes/web.php` → `->middleware($panel->getMiddleware())`), middleware-ul a trebuit adăugat explicit în `authMiddleware`-ul ambilor panele.
+- `RegisteredUserController`: `assignRole(Role::findOrCreate('Guest', 'web'))` (self-healing, nu depinde de seeder).
+- **Hook automat de roluri**: `Host::booted()->saved` → `assignRole(Role::findOrCreate('Host','web'))`, idem `Provider` → `Provider`; orice cale de creare (seeder, Filament, factory) aliniază rolul. `Role::findOrCreate` = fără excepții când tabelele de permisiuni există dar rolurile nu sunt seeduite.
+- **Resursa Utilizatori** (`app/Filament/Resources/Users/`, grup navigație nou **„Conturi"**, sort 1, icon Users):
+  - `UsersTable`: nume, email (copyable), badge-uri roluri (culori: SuperAdmin danger/Host info/Provider success/Guest gray), status badge, iconițe „Verificat"/„2FA", ultima autentificare (placeholder „Niciodată"); filtre: status, rol (relationship), toggle „Email verificat"; acțiuni: View, Intră în cont, Suspendă, Reactivează, Reset parolă, Edit, Delete (ascunsă după gardă).
+  - `UserForm`: Secțiuni Identitate (nume/email unique/telefon/limbă), Securitate (parolă — required doar la create, `dehydrated` doar cât e filled, hash via cast `hashed`; „Email verificat la"), Roluri (`Select->relationship('roles','name')->multiple()->preload()` — **valorile sunt ID-uri de rol, nu nume**).
+  - `UserInfolist` (ViewUser): identitate, securitate & acces (status, 2FA badge, motiv/dată suspendare, ultimul login/IP), roluri badge, profil platformă (KYC gazdă/firmă, Stripe, firmă activă Da/Nu via `->state()` — `TextEntry::boolean()` nu există în v5).
+  - Acțiuni custom în `app/Filament/Actions/`: `SuspendUserAction` (form cu motiv, invizibil pt. self/SuperAdmin/already suspended), `ActivateUserAction`, `ImpersonateUserAction` (user → `ImpersonationService`, redirect `impersonation.landing`), `SendPasswordResetAction` (`Password::sendResetLink` — notificare directă `ResetPassword` către user, **nu** on-demand → `Notification::assertSentTo`).
+  - `UserResource::deletionBlocker()`: interzice ștergerea propriului cont, a unui SuperAdmin și a unui cont cu profil Gazdă/Firmă (FK `cascadeOnDelete` ar șterge lanțul proprietăți/rezervări); folosit în `visible()` pe DeleteAction din tabel + header EditUsers (closure cu `instanceof` narrowing pentru PHPStan).
+  - `ListUsers` header: `CreateAction` vizibil după `users.create`.
+- Navigație: `navigationGroups(['Conturi','Marketplace','Operațional','Financiar','Configurare'])` în `AdminPanelProvider`.
+
+**Filament v5 — detalii de API întâlnite:** `TextInput::lowercase()` eliminat (nu mai există); `callTableAction('name', $record, data: [...])` named param funcționează; `assertTableActionHidden` disponibil; `Select->relationship()` = valori pe cheia primară a rolului.
+
+**Teste noi (11):** `UserAdministrationTest` — navigație „Conturi/Utilizatori"; creare user cu rol (ID rol) + hash parolă; suspendare → status + logout forțat la următoarea cerere; login + logout imediat pentru cont suspendat; reactivare; `assertTableActionHidden('suspend', SuperAdmin)`; reset link trimis (`assertSentTo`); pagină View; creare Host → rol Host; creare Provider → rol Provider; gardă ștergere (4 motive). `RegistrationTest` actualizat: user nou → `hasRole('Guest')`.
+
+**Gate-uri (2026-10-19):** 256/256 PASS (682 assertions), Pint PASS, PHPStan level 6 → 0 erori, `DemoDataSeeder` re-rulează idempotent, migrare `add_status_to_users` aplicată pe DB-ul dev.
+
+## Sesiunea 10 — Mesageria internă + notificări in-app (Faza 2, partea 1)
+
+**Mesagerie internă (direct + context rezervare):**
+- Migrație `2026_10_19_000300_create_conversations_tables`: `conversations` (`subject`, `direct_key` unic, `booking_id`, `task_id`, `last_message_at`), pivot `conversation_user` (`last_read_at`), `messages` (`sender_id`, `body`).
+- `Conversation::findOrCreateDirect(User, User)` — cheie `direct_key` = ID-uri sortate (idempotent; reluarea unei conversații nu duplică). `sendMessage()`, `isParticipant()`, `markReadFor()`, `unreadCountFor()` (pivot `last_read_at` vs `messages.created_at`), `othersExcept()`, `titleFor()`.
+- `Message::scopeChronological()`; relații `User::{conversations(), messages(), unreadMessagesCount()}`.
+- `MessagingController::startWith()` (`POST /messages/with/{user}`) — refuză self și cont suspendat (`403`); opțional `?booking=BK-XXX` atașează rezervarea **doar** dacă ambii utilizatori sunt participanți (guest/host) la acea rezervare, altfel ignoră.
+- Rute: `Volt::route('/messages', 'messages.index')`, `Volt::route('/messages/{conversation}', 'messages.show')` (grup `['auth','verified']`).
+- Pagini Volt: `messages.index` (listă conversații + badge unread + ultimul mesaj, layout public) și `messages.show` (bule, polling 15s + `markRead`, trimitere cu validare `required|max:2000`).
+- Legătură din booking: `bookings.show` afișează link „Contactează gazda" (`contact-link`) → `/messages/with/{host_user}`; nav-ul arată „Mesaje" + badge în `layouts/navigation.blade.php` și `components/layouts/public.blade.php`.
+
+**Notificări in-app (database channel):**
+- Migrație `2026_10_19_000200_create_notifications_table` (tabela standard Laravel).
+- `NewMessageNotification` (titlu + preview 100 car. + URL conversație), `BookingConfirmedNotification` / `BookingCancelledNotification` (url `bookings.show`) — toate prin canal `database`.
+- `App\Livewire\NotificationBell` (componentă Livewire clasică) + `livewire/notification-bell.blade.php`: dropdown, badge unread, `markRead()` (marchează citit + redirect **doar** către URL intern — blochează `//` și originile externe → fallback `/dashboard`), `markAllRead()`, polling 30s.
+- `BookingService::confirm()`/`cancel()` notifică **guest + host** in-app (pe lângă emailurile deja existente).
+- Panourile Filament `admin` + `provider`: `->databaseNotifications()->databaseNotificationsPolling('30s')` + item de navigație „Mesaje".
+
+**Teste noi (18):** `MessagingTest` — auth redirect, conversație directă creată/reutilizată, self/suspendat interzis, non-participant 403, trimitere mesaj + notificare destinatar (nu expeditor), mesaj gol respins, unread/markRead, listă conversații, notificări confirmare/anulare rezervare guest+host, context booking atașat, badge nav pe dashboard, link contact pe pagina rezervării, notification bell (markRead + redirect, markAllRead, respingere URL extern).
+
+**Gate-uri (2026-10-19):** 274/274 PASS (729 assertions), Pint PASS, PHPStan level 6 → 0 erori.
+
+## Sesiunea 11 — Profil completat (badge profesional) + dashboard per tip cont (Faza 2, partea 2)
+
+**Profil completat cu avatar:**
+- `User::avatarUrl()` (discul `public`), `User::initials()` (fallback avatar), `User::profileCompletionSteps()` (cei 6 pași, refolosiți de badge).
+- `ProfileUpdateRequest`: reguli noi `phone` (nullable, max 30), `locale` (nullable, `in:ro,en`), `avatar` (imagine jpg/jpeg/png/webp ≤2MB), `remove_avatar` (boolean).
+- `ProfileController::update()` — salvează `phone`/`locale` (locale blank ignorat), încarcă avatarul (`store('avatars','public')`), șterge fișierul vechi la înlocuire/`remove_avatar`, invalidează `email_verified_at` doar când emailul se schimbă (comportament păstrat).
+- Pagina `/profile`: card „Profil completat" (procent + bară + checklist cu cei 6 pași, `data-testid="profile-completion"`), formular extins (avatar + preview/iniţiale, nume, email, telefon, selector limbă).
+
+**Dashboard per tip cont (`/dashboard` → Volt):**
+- Ruta `/dashboard` a trecut de la `view('dashboard')` (placeholder șters) la `Volt::route('/dashboard','dashboard')`.
+- `livewire/dashboard.blade.php` (Guest): salut personalizat, badge mesaje necitite + link „Panoul meu" (role-aware prin `RoleRedirector`), hint de completare profil, listă rezervări viitoare (status badge), istoric recent. Host/Provider sunt redirecționați de `RoleRedirector` către `/host`/`/provider` (dashboard-urile lor există deja).
+
+**Teste noi (11):** `ProfileTest` (+5): phone+locale, locale invalid respins, upload+ștergere avatar (Storage fake), `profileCompletion()` reflectă datele, badge pe pagină. `GuestDashboardTest` (6): auth, welcome + empty state, rezervări viitoare, istoric, izolare (nu vede rezervările altui oaspete), hint completare profil.
+
+**Gate-uri (2026-10-19):** **285/285 PASS (769 assertions)**, Pint PASS, PHPStan level 6 → 0 erori. Notă: `ApplicationFeeTest::test_fee_is_zero_without_a_plan_percentage` a eșuat o dată în rulare completă dar trece izolat și la re-rulare completă — flake de ordonare pre-existent (nu atinge plăți/planuri modificate aici).
+
+## Sesiunea 12 — Widget-uri noi Command Center + pagini de rapoarte + Mesaje în admin
+
+**Widget-uri noi (dashboard SuperAdmin):**
+- `PlatformHealthService` — scor global 0–100 din 4 factori (dispute deschise max 30, sarcini restante max 25, rezervări afectate max 25, erori aplicație 24h max 20). `report()` → `{score,status,color,label,factors}`; `errorRate()` (cache 5 min), `countApplicationErrors()` (`protected`, citește `storage/logs/laravel.log`). Praguri: ≥90 sănătos, ≥70 atenție, else critic.
+- `PlatformHealthWidget` (+ view + partial factor); `KpiOverviewWidget` rescris (10 KPI: MRR, ARR, ARPU, abonamente active, gazde active, companii mentenanță, proprietăți active, dispute deschise, rezervări lună, task-uri mentenanță); `PropertiesByCityWidget` (top 8 orașe); `NeedsAttentionWidget` extins la 8 item-uri (dispute noi/investigație, intervenții urgente, task-uri întârziate, abonamente care expiră 14z, proprietăți blocate, gazde/firme fără KYC); `TopHostsWidget`; `TopProvidersWidget`; `MarketplaceConversionWidget` (funnel). `SubscriptionMetrics::arpu()` adăugat; `DisputeFactory` nou.
+
+**Reorganizare rapoarte (pagini separate în meniu):**
+- `Dashboard` păstrează doar KPI + Health + NeedsAttention (grup implicit, „Command Center").
+- Pagini noi `FinancialReport` (`/admin/reports/financial`), `OperationalReport` (`/admin/reports/operational`), `MarketplaceReport` (`/admin/reports/marketplace`) — extind `Filament\Pages\Page` (NU `Dashboard`, altfel revendicau ruta `/` și rupeau `filament.admin.pages.dashboard`), randează widget-uri prin `content(Schema)` + `getWidgetsSchemaComponents()`, grup de navigare „Rapoarte", sort 20/30/40.
+
+**Mesaje în admin (Filament nativ, cu sidebar):**
+- `Messages` (`/admin/messages`) + view; `ViewConversation` (`messages/{conversation}`, fără item de navigare, mount cu route binding + `markReadFor`, metoda `send()`). Înlocuiește vechiul `NavigationItem` care pierdea sidebar-ul.
+
+**AdminPanelProvider:** adăugat grup „Rapoarte"; corectat mojibake „Operațional".
+
+**Teste:** `PlatformHealthWidgetsTest` (11) — include teste deterministe pe `PlatformHealthService` (curăță dispute/task-uri/rezervări înainte de a aserta scorul, mock `countApplicationErrors`) și `Livewire::test` per widget. `AdminDashboardCommandCenterTest` actualizat: navigare grupată (inclusiv „Rapoarte"), deschidere pagini rapoarte (`/admin/reports/*`) și pagină Mesaje cu `fi-sidebar`.
+
+**Gate-uri (2026-10-20):** **297/298 PASS (809 assertions)**, Pint PASS, PHPStan level 6 → 0 erori. Singurul eșec = flake-ul pre-existent `ApplicationFeeTest::test_fee_is_zero_without_a_plan_percentage` (trece izolat).
+
+## Următorii pași
+
+1. ~~Actualizează `Plan dezvoltare.md`~~ ✅ rămas (tabel de stadiu adăugat; marcat aici).
+2. Organizații/tenants (dacă rămâne în plan): model propriu sau Filament Teams pe Spatie Permission (`team` = null momentan).
+3. Verifică panoul Host vs Filament — **decizie: păstrăm Livewire/Volt** pentru panoul Host.
+4. ~~Rulează gate-urile~~ ✅ rulate 2026-10-19: 256/256 + Pint + PHPStan 0 erori; după sesiunea 10: **274/274**; după sesiunea 11: **285/285 PASS (769 assertions)** + Pint + PHPStan level 6 → 0 erori.
+5. ~~Modulul **SaaS**~~ ✅ făcut în sesiunea 7 (abonamente forțate, `application_fee`, webhook, widget MRR/churn).
+6. ~~Test dedicat pentru pagina `Provider\Pages\Invoicing`~~ ✅ făcut în sesiunea 6 (+ fix filtru).
+7. Commit sesiunile 1-11 (totul ne-commit-uit: rebranding StayOps, landing, demo, Command Center, administrare conturi, mesagerie + notificări, profil + dashboard + changes anterioare: Provider panel, Teams, impersonation, KYC, SaaS/Cashier, teste).
+8. **Faza 2 (aprobată)**: ~~mesagerie internă + notificări in-app~~ ✅ sesiunea 10; ~~profil completat (badge profesional) + dashboard per tip cont~~ ✅ sesiunea 11. **Rămas**: dashboard-uri dedicate Host/Provider mai bogate (KPI, grafice) — opțional; Twilio SMS, Mailgun/Postmark, deploy producție (Etapa 5).

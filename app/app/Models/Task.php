@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use OwenIt\Auditing\Auditable as AuditableTrait;
 use OwenIt\Auditing\Contracts\Auditable;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class Task extends Model implements Auditable
+class Task extends Model implements Auditable, HasMedia
 {
-    use AuditableTrait, HasFactory;
+    use AuditableTrait, HasFactory, InteractsWithMedia;
 
     protected $fillable = [
         'property_id', 'booking_id', 'type', 'title', 'description',
@@ -47,5 +50,36 @@ class Task extends Model implements Auditable
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to_user_id');
+    }
+
+    /**
+     * Scope tasks visible to a provider user: directly assigned to them,
+     * or belonging to a provider whose user account is the given user.
+     *
+     * @param  Builder<Task>  $query
+     * @return Builder<Task>
+     */
+    public function scopeVisibleToProviderUser(Builder $query, int|string|null $userId): Builder
+    {
+        return $query->where(function (Builder $query) use ($userId): void {
+            $query->where('assigned_to_user_id', $userId)
+                ->orWhereHas('provider', fn (Builder $q) => $q->where('user_id', $userId));
+        });
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('before_photos')
+            ->useDisk('public')
+            ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp']);
+
+        $this->addMediaCollection('after_photos')
+            ->useDisk('public')
+            ->acceptsMimeTypes(['image/jpeg', 'image/png', 'image/webp']);
+    }
+
+    public function hasAfterPhotos(): bool
+    {
+        return $this->getMedia('after_photos')->isNotEmpty();
     }
 }

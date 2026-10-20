@@ -10,11 +10,10 @@ parameters:
 
     level: 6
 
-    checkMissingIterableValueType: false
-    checkGenericClassInNonGenericObjectType: false
+    treatPhpDocTypesAsCertain: false
 
     ignoreErrors:
-        - '#PHPDoc tag @var#'
-
-    excludePaths:
-        - ./*/*/FileToBeExcluded.php
+        -
+            identifier: missingType.generics
+        -
+            identifier: missingType.iterableValue

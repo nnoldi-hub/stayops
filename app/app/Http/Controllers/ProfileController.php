@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -26,15 +28,37 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $user = $request->user();
+        $validated = $request->safe()->only(['name', 'email', 'phone', 'locale']);
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        if (blank($validated['locale'] ?? null)) {
+            unset($validated['locale']);
         }
 
-        $request->user()->save();
+        $user->fill($validated);
+
+        if ($request->hasFile('avatar')) {
+            $this->deleteAvatarFile($user);
+            $user->avatar_path = $request->file('avatar')->store('avatars', 'public');
+        } elseif ($request->boolean('remove_avatar')) {
+            $this->deleteAvatarFile($user);
+            $user->avatar_path = null;
+        }
+
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
+        }
+
+        $user->save();
 
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
+    }
+
+    private function deleteAvatarFile(User $user): void
+    {
+        if (filled($user->avatar_path)) {
+            Storage::disk('public')->delete($user->avatar_path);
+        }
     }
 
     /**

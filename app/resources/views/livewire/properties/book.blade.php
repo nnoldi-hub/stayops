@@ -21,7 +21,7 @@ new #[Layout('components.layouts.public')] #[Title('Rezervă proprietate')] clas
 
     public function mount(Property $property): void
     {
-        abort_unless($property->status === 'published', 404);
+        abort_unless($property->status === 'published' && $property->host?->kyc_status === 'approved', 404);
         $this->property = $property;
         $this->checkIn = now()->addDay()->toDateString();
         $this->checkOut = now()->addDays(3)->toDateString();

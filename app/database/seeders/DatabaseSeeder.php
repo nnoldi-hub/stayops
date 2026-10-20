@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -20,5 +19,9 @@ class DatabaseSeeder extends Seeder
             AmenitiesSeeder::class,
             AdminUserSeeder::class,
         ]);
+
+        if (app()->isLocal()) {
+            $this->call(DemoDataSeeder::class);
+        }
     }
 }

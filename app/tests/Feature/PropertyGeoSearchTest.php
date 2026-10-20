@@ -6,7 +6,6 @@ use App\Models\Amenity;
 use App\Models\Host;
 use App\Models\Property;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -17,17 +16,13 @@ class PropertyGeoSearchTest extends TestCase
     private function makePropertyAt(string $title, float $lat, float $lng): Property
     {
         $host = Host::factory()->create();
-        $property = Property::factory()->for($host)->create([
+
+        return Property::factory()->for($host)->create([
             'title' => $title,
             'status' => 'published',
+            'latitude' => $lat,
+            'longitude' => $lng,
         ]);
-
-        DB::statement(
-            'UPDATE properties SET location = ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography WHERE id = ?',
-            [$lng, $lat, $property->id]
-        );
-
-        return $property;
     }
 
     public function test_geo_filter_returns_only_properties_within_radius(): void

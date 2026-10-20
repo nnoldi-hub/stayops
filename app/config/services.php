@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'stripe' => [
+        'key' => env('STRIPE_KEY', env('STRIPE_PUBLIC_KEY')),
+        'secret' => env('STRIPE_SECRET', env('STRIPE_SECRET_KEY')),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        // Fallback platform commission (%) for hosts without a resolved plan.
+        'platform_fee_pct' => env('STRIPE_PLATFORM_FEE_PCT', 10),
+    ],
+
 ];

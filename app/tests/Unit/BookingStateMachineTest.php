@@ -20,7 +20,7 @@ class BookingStateMachineTest extends TestCase
 
     public function test_confirmed_can_transition_to_checked_in_cancelled_no_show(): void
     {
-        $booking = new Booking();
+        $booking = new Booking;
         $booking->status = 'confirmed';
 
         $this->assertTrue($booking->canTransitionTo('checked_in'));
@@ -32,7 +32,7 @@ class BookingStateMachineTest extends TestCase
 
     public function test_checked_in_can_transition_to_checked_out_or_disputed(): void
     {
-        $booking = new Booking();
+        $booking = new Booking;
         $booking->status = 'checked_in';
 
         $this->assertTrue($booking->canTransitionTo('checked_out'));
@@ -43,7 +43,7 @@ class BookingStateMachineTest extends TestCase
 
     public function test_refunded_is_terminal(): void
     {
-        $booking = new Booking();
+        $booking = new Booking;
         $booking->status = 'refunded';
 
         foreach (Booking::STATUSES as $status) {

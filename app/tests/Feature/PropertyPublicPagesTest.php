@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Host;
 use App\Models\Property;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class PropertyPublicPagesTest extends TestCase
@@ -50,7 +51,7 @@ class PropertyPublicPagesTest extends TestCase
         Property::factory()->for($host)->create(['title' => 'Brașov Loft', 'city' => 'Brașov', 'status' => 'published']);
         Property::factory()->for($host)->create(['title' => 'Cluj Apt',   'city' => 'Cluj-Napoca', 'status' => 'published']);
 
-        \Livewire\Volt\Volt::test('properties.index')
+        Volt::test('properties.index')
             ->set('city', 'Brașov')
             ->assertSee('Brașov Loft')
             ->assertDontSee('Cluj Apt');
@@ -62,7 +63,7 @@ class PropertyPublicPagesTest extends TestCase
         Property::factory()->for($host)->create(['title' => 'Studio One', 'property_type' => 'studio', 'status' => 'published']);
         Property::factory()->for($host)->create(['title' => 'Vila Mare', 'property_type' => 'villa', 'status' => 'published']);
 
-        \Livewire\Volt\Volt::test('properties.index')
+        Volt::test('properties.index')
             ->set('propertyType', 'studio')
             ->assertSee('Studio One')
             ->assertDontSee('Vila Mare');

@@ -14,9 +14,9 @@ class RoleRedirector
     {
         return match (true) {
             $user->hasRole('SuperAdmin') => '/admin',
-            $user->hasRole('Host')       => '/host',
-            $user->hasRole('Provider')   => '/provider',
-            default                      => '/dashboard',
+            $user->hasRole('Host') => '/host',
+            $user->hasRole('Provider') => '/provider',
+            default => '/dashboard',
         };
     }
 }

@@ -19,14 +19,14 @@ class Booking extends Model implements Auditable
     ];
 
     public const ALLOWED_TRANSITIONS = [
-        'pending'      => ['confirmed', 'cancelled'],
-        'confirmed'    => ['checked_in', 'cancelled', 'no_show'],
-        'checked_in'   => ['checked_out', 'disputed'],
-        'checked_out'  => ['disputed', 'refunded'],
-        'cancelled'    => ['refunded'],
-        'no_show'      => ['refunded'],
-        'disputed'     => ['refunded', 'checked_out'],
-        'refunded'     => [],
+        'pending' => ['confirmed', 'cancelled'],
+        'confirmed' => ['checked_in', 'cancelled', 'no_show'],
+        'checked_in' => ['checked_out', 'disputed'],
+        'checked_out' => ['disputed', 'refunded'],
+        'cancelled' => ['refunded'],
+        'no_show' => ['refunded'],
+        'disputed' => ['refunded', 'checked_out'],
+        'refunded' => [],
     ];
 
     protected $fillable = [
@@ -52,11 +52,17 @@ class Booking extends Model implements Auditable
         'total_price' => 'decimal:2',
     ];
 
+    /**
+     * @return BelongsTo<Property, $this>
+     */
     public function property(): BelongsTo
     {
         return $this->belongsTo(Property::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function guest(): BelongsTo
     {
         return $this->belongsTo(User::class, 'guest_id');
@@ -79,6 +85,11 @@ class Booking extends Model implements Auditable
 
     public function canTransitionTo(string $newStatus): bool
     {
-        return in_array($newStatus, self::ALLOWED_TRANSITIONS[$this->status] ?? [], true);
+        $allowed = self::ALLOWED_TRANSITIONS[$this->status] ?? null;
+        if (! is_array($allowed)) {
+            return false;
+        }
+
+        return in_array($newStatus, $allowed, true);
     }
 }

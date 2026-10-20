@@ -23,6 +23,7 @@ class RoleRedirectTest extends TestCase
         if ($role) {
             $user->assignRole($role);
         }
+
         return $user;
     }
 

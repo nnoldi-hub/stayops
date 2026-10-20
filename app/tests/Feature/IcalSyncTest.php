@@ -7,6 +7,7 @@ use App\Models\IcalFeed;
 use App\Models\Property;
 use App\Services\IcalSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -36,6 +37,7 @@ class IcalSyncTest extends TestCase
     private function makeProperty(): Property
     {
         $host = Host::factory()->create();
+
         return Property::factory()->for($host)->create(['status' => 'published']);
     }
 
@@ -43,10 +45,10 @@ class IcalSyncTest extends TestCase
     {
         return IcalFeed::create(array_merge([
             'property_id' => $property->id,
-            'direction'   => 'in',
+            'direction' => 'in',
             'source_name' => 'airbnb',
-            'url'         => 'https://example.com/ical.ics',
-            'is_active'   => true,
+            'url' => 'https://example.com/ical.ics',
+            'is_active' => true,
         ], $attrs));
     }
 
@@ -54,8 +56,8 @@ class IcalSyncTest extends TestCase
 
     public function test_parse_returns_correct_events_from_valid_ics(): void
     {
-        $service = new IcalSyncService();
-        $events  = $service->parse($this->sampleIcs());
+        $service = new IcalSyncService;
+        $events = $service->parse($this->sampleIcs());
 
         $this->assertCount(1, $events);
         $this->assertEquals('test-001@airbnb.com', $events[0]['uid']);
@@ -67,7 +69,7 @@ class IcalSyncTest extends TestCase
 
     public function test_parse_returns_empty_array_for_empty_ics(): void
     {
-        $service = new IcalSyncService();
+        $service = new IcalSyncService;
         $this->assertSame([], $service->parse(''));
     }
 
@@ -84,8 +86,8 @@ class IcalSyncTest extends TestCase
             'END:VCALENDAR',
         ]);
 
-        $service = new IcalSyncService();
-        $events  = $service->parse($ics);
+        $service = new IcalSyncService;
+        $events = $service->parse($ics);
 
         $this->assertCount(1, $events);
         $this->assertEquals('fold-test@example.com', $events[0]['uid']);
@@ -103,7 +105,7 @@ class IcalSyncTest extends TestCase
             'END:VCALENDAR',
         ]);
 
-        $service = new IcalSyncService();
+        $service = new IcalSyncService;
         $this->assertSame([], $service->parse($ics));
     }
 
@@ -114,22 +116,22 @@ class IcalSyncTest extends TestCase
         Http::fake(['*' => Http::response($this->sampleIcs(), 200)]);
 
         $property = $this->makeProperty();
-        $feed     = $this->makeFeed($property);
+        $feed = $this->makeFeed($property);
 
-        $service = new IcalSyncService();
-        $synced  = $service->sync($feed);
+        $service = new IcalSyncService;
+        $synced = $service->sync($feed);
 
         $this->assertEquals(1, $synced);
         $this->assertDatabaseHas('ical_events', [
             'feed_id' => $feed->id,
-            'uid'     => 'test-001@airbnb.com',
+            'uid' => 'test-001@airbnb.com',
         ]);
         $this->assertDatabaseHas('bookings', [
-            'property_id'    => $property->id,
-            'source'         => 'ical',
-            'status'         => 'confirmed',
+            'property_id' => $property->id,
+            'source' => 'ical',
+            'status' => 'confirmed',
             'payment_status' => 'paid',
-            'external_id'    => 'test-001@airbnb.com',
+            'external_id' => 'test-001@airbnb.com',
         ]);
     }
 
@@ -138,9 +140,9 @@ class IcalSyncTest extends TestCase
         Http::fake(['*' => Http::response($this->sampleIcs(), 200)]);
 
         $property = $this->makeProperty();
-        $feed     = $this->makeFeed($property);
+        $feed = $this->makeFeed($property);
 
-        $service = new IcalSyncService();
+        $service = new IcalSyncService;
         $service->sync($feed);
         $second = $service->sync($feed);
 
@@ -154,9 +156,9 @@ class IcalSyncTest extends TestCase
         Http::fake(['*' => Http::response($this->sampleIcs(), 200)]);
 
         $property = $this->makeProperty();
-        $feed     = $this->makeFeed($property);
+        $feed = $this->makeFeed($property);
 
-        (new IcalSyncService())->sync($feed);
+        (new IcalSyncService)->sync($feed);
 
         $feed->refresh();
         $this->assertNotNull($feed->last_sync_at);
@@ -169,12 +171,12 @@ class IcalSyncTest extends TestCase
         Http::fake(['*' => Http::response('Server Error', 500)]);
 
         $property = $this->makeProperty();
-        $feed     = $this->makeFeed($property);
+        $feed = $this->makeFeed($property);
 
-        $this->expectException(\Illuminate\Http\Client\RequestException::class);
+        $this->expectException(RequestException::class);
 
         try {
-            (new IcalSyncService())->sync($feed);
+            (new IcalSyncService)->sync($feed);
         } finally {
             $this->assertNotNull($feed->fresh()->last_error);
         }
@@ -183,9 +185,9 @@ class IcalSyncTest extends TestCase
     public function test_sync_returns_zero_for_inactive_feed(): void
     {
         $property = $this->makeProperty();
-        $feed     = $this->makeFeed($property, ['is_active' => false]);
+        $feed = $this->makeFeed($property, ['is_active' => false]);
 
-        $synced = (new IcalSyncService())->sync($feed);
+        $synced = (new IcalSyncService)->sync($feed);
 
         $this->assertEquals(0, $synced);
         Http::assertNothingSent();

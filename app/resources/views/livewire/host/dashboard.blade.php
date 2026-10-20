@@ -43,9 +43,26 @@ new #[Layout('components.layouts.public')] #[Title('Host — Dashboard')] class 
     <div class="max-w-5xl mx-auto bg-white rounded-lg shadow-sm p-6">
         <div class="flex items-center justify-between">
             <h1 class="text-2xl font-semibold text-gray-900">Proprietățile mele</h1>
-            <a href="{{ route('host.properties.create') }}"
+            <div class="flex items-center gap-3">
+                <a href="{{ route('host.subscription') }}"
+                   data-testid="host-subscription-link"
+                   class="text-sm font-semibold px-3 py-1.5 rounded border border-gray-300 text-gray-700 bg-gray-50">
+                    Abonament
+                </a>
+                @php($kycStatus = $this->host?->kyc_status ?? 'pending')
+                <a href="{{ route('host.verification') }}"
+                   data-testid="kyc-verification-link"
+                   class="text-sm font-semibold px-3 py-1.5 rounded border
+                        @if ($kycStatus === 'approved') border-green-300 text-green-800 bg-green-50
+                        @elseif ($kycStatus === 'rejected') border-red-300 text-red-800 bg-red-50
+                        @else border-yellow-300 text-yellow-800 bg-yellow-50
+                        @endif">
+                    KYC: {{ match ($kycStatus) { 'approved' => 'Aprobat', 'rejected' => 'Respins', 'submitted' => 'În verificare', default => 'Necompletat' } }}
+                </a>
+                <a href="{{ route('host.properties.create') }}"
                class="bg-indigo-600 text-white text-sm font-semibold px-3 py-1.5 rounded hover:bg-indigo-700"
                data-testid="create-property-link">+ Adaugă proprietate</a>
+            </div>
         </div>
 
         @if ($properties->isEmpty())

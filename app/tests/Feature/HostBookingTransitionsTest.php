@@ -7,6 +7,7 @@ use App\Models\Host;
 use App\Models\Property;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Volt\Volt;
@@ -27,8 +28,8 @@ class HostBookingTransitionsTest extends TestCase
     {
         /** @var User $user */
         $user = User::factory()->create([
-            'two_factor_secret'        => encrypt('secret'),
-            'two_factor_confirmed_at'  => now(),
+            'two_factor_secret' => encrypt('secret'),
+            'two_factor_confirmed_at' => now(),
         ]);
         $user->assignRole('Host');
         $host = Host::factory()->create(['user_id' => $user->id]);
@@ -42,7 +43,7 @@ class HostBookingTransitionsTest extends TestCase
         $property = Property::factory()->for($host)->create(['status' => 'published']);
 
         return Booking::factory()->for($property)->create(array_merge([
-            'status'         => 'pending',
+            'status' => 'pending',
             'payment_status' => 'pending',
         ], $state));
     }
@@ -81,13 +82,13 @@ class HostBookingTransitionsTest extends TestCase
     public function test_host_can_confirm_pending_booking(): void
     {
         [, $host] = $this->actAsHost();
-        $booking  = $this->makeBookingForHost($host, ['status' => 'pending']);
+        $booking = $this->makeBookingForHost($host, ['status' => 'pending']);
 
         Volt::test('host.bookings')
             ->call('confirm', $booking->id);
 
         $this->assertDatabaseHas('bookings', [
-            'id'     => $booking->id,
+            'id' => $booking->id,
             'status' => 'confirmed',
         ]);
     }
@@ -96,9 +97,10 @@ class HostBookingTransitionsTest extends TestCase
     {
         [, $host] = $this->actAsHost();
         $otherHost = Host::factory()->create();
-        $booking   = $this->makeBookingForHost($otherHost, ['status' => 'pending']);
+        $booking = $this->makeBookingForHost($otherHost, ['status' => 'pending']);
 
-        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $this->withoutExceptionHandling();
+        $this->expectException(ModelNotFoundException::class);
 
         Volt::test('host.bookings')
             ->call('confirm', $booking->id);
@@ -109,7 +111,7 @@ class HostBookingTransitionsTest extends TestCase
     public function test_host_can_cancel_pending_booking_with_reason(): void
     {
         [, $host] = $this->actAsHost();
-        $booking  = $this->makeBookingForHost($host, ['status' => 'pending']);
+        $booking = $this->makeBookingForHost($host, ['status' => 'pending']);
 
         Volt::test('host.bookings')
             ->call('openCancel', $booking->id)
@@ -117,8 +119,8 @@ class HostBookingTransitionsTest extends TestCase
             ->call('cancelBooking');
 
         $this->assertDatabaseHas('bookings', [
-            'id'                  => $booking->id,
-            'status'              => 'cancelled',
+            'id' => $booking->id,
+            'status' => 'cancelled',
             'cancellation_reason' => 'Proprietatea indisponibilă',
         ]);
     }
@@ -126,14 +128,14 @@ class HostBookingTransitionsTest extends TestCase
     public function test_host_can_cancel_confirmed_booking(): void
     {
         [, $host] = $this->actAsHost();
-        $booking  = $this->makeBookingForHost($host, ['status' => 'confirmed']);
+        $booking = $this->makeBookingForHost($host, ['status' => 'confirmed']);
 
         Volt::test('host.bookings')
             ->call('openCancel', $booking->id)
             ->call('cancelBooking');
 
         $this->assertDatabaseHas('bookings', [
-            'id'     => $booking->id,
+            'id' => $booking->id,
             'status' => 'cancelled',
         ]);
     }
@@ -143,13 +145,13 @@ class HostBookingTransitionsTest extends TestCase
     public function test_host_can_check_in_confirmed_booking(): void
     {
         [, $host] = $this->actAsHost();
-        $booking  = $this->makeBookingForHost($host, ['status' => 'confirmed']);
+        $booking = $this->makeBookingForHost($host, ['status' => 'confirmed']);
 
         Volt::test('host.bookings')
             ->call('checkIn', $booking->id);
 
         $this->assertDatabaseHas('bookings', [
-            'id'     => $booking->id,
+            'id' => $booking->id,
             'status' => 'checked_in',
         ]);
     }
@@ -157,7 +159,7 @@ class HostBookingTransitionsTest extends TestCase
     public function test_host_cannot_check_in_pending_booking(): void
     {
         [, $host] = $this->actAsHost();
-        $booking  = $this->makeBookingForHost($host, ['status' => 'pending']);
+        $booking = $this->makeBookingForHost($host, ['status' => 'pending']);
 
         $this->expectException(\DomainException::class);
 
@@ -170,13 +172,13 @@ class HostBookingTransitionsTest extends TestCase
     public function test_host_can_check_out_checked_in_booking(): void
     {
         [, $host] = $this->actAsHost();
-        $booking  = $this->makeBookingForHost($host, ['status' => 'checked_in']);
+        $booking = $this->makeBookingForHost($host, ['status' => 'checked_in']);
 
         Volt::test('host.bookings')
             ->call('checkOut', $booking->id);
 
         $this->assertDatabaseHas('bookings', [
-            'id'     => $booking->id,
+            'id' => $booking->id,
             'status' => 'checked_out',
         ]);
     }
@@ -184,7 +186,7 @@ class HostBookingTransitionsTest extends TestCase
     public function test_host_cannot_check_out_pending_booking(): void
     {
         [, $host] = $this->actAsHost();
-        $booking  = $this->makeBookingForHost($host, ['status' => 'pending']);
+        $booking = $this->makeBookingForHost($host, ['status' => 'pending']);
 
         $this->expectException(\DomainException::class);
 

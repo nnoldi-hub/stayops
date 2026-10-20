@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\ImpersonationService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -26,6 +27,12 @@ class EnsureTwoFactorAuthenticated
         $user = $request->user();
 
         if (! $user) {
+            return $next($request);
+        }
+
+        // While a SuperAdmin is impersonating, the 2FA requirement of the target
+        // account must not force the admin through the target's 2FA setup flow.
+        if (session()->has(ImpersonationService::SESSION_KEY)) {
             return $next($request);
         }
 

@@ -4,7 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('bookings', function (Blueprint $table) {
@@ -30,7 +31,7 @@ return new class extends Migration {
             $table->string('currency', 3)->default('RON');
             $table->enum('status', [
                 'pending', 'confirmed', 'checked_in', 'checked_out',
-                'cancelled', 'refunded', 'no_show', 'disputed'
+                'cancelled', 'refunded', 'no_show', 'disputed',
             ])->default('pending')->index();
             $table->enum('source', ['direct', 'airbnb', 'booking', 'vrbo', 'ical', 'manual'])->default('direct')->index();
             $table->string('external_id')->nullable()->index();

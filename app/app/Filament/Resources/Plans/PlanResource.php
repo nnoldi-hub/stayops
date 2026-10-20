@@ -18,17 +18,17 @@ class PlanResource extends Resource
 {
     protected static ?string $model = Plan::class;
 
-    protected static ?string $navigationLabel = 'Planuri';
+    protected static ?string $navigationLabel = 'Abonamente';
 
     protected static ?string $modelLabel = 'Plan';
 
     protected static ?string $pluralModelLabel = 'Planuri';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Configurare';
+    protected static string|\UnitEnum|null $navigationGroup = 'Financiar';
 
-    protected static ?int $navigationSort = 60;
+    protected static ?int $navigationSort = 10;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCreditCard;
 
     public static function form(Schema $schema): Schema
     {

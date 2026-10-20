@@ -88,20 +88,23 @@ class PublicBookingFlowTest extends TestCase
         $user->assignRole('Guest');
         $property = $this->publishedProperty();
 
-        // Existing pending booking blocks 2026-06-10 → 2026-06-15
+        $existingIn = now()->addDays(30)->toDateString();
+        $existingOut = now()->addDays(35)->toDateString();
+
+        // Existing pending booking blocks the interval.
         Booking::factory()->create([
             'property_id' => $property->id,
             'guest_id' => null,
-            'check_in' => '2026-06-10',
-            'check_out' => '2026-06-15',
+            'check_in' => $existingIn,
+            'check_out' => $existingOut,
             'status' => 'pending',
         ]);
 
         $this->actingAs($user);
 
         $component = Volt::test('properties.book', ['property' => $property])
-            ->set('checkIn', '2026-06-12')
-            ->set('checkOut', '2026-06-14')
+            ->set('checkIn', now()->addDays(32)->toDateString())
+            ->set('checkOut', now()->addDays(34)->toDateString())
             ->set('guestsCount', 1)
             ->call('save');
 

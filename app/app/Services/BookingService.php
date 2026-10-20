@@ -6,15 +6,23 @@ use App\Mail\BookingCancelledMail;
 use App\Mail\BookingConfirmedMail;
 use App\Models\Booking;
 use App\Models\Property;
+use App\Models\User;
+use App\Notifications\BookingCancelledNotification;
+use App\Notifications\BookingConfirmedNotification;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
-use Laravel\Cashier\Cashier;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class BookingService
 {
+    public function __construct(
+        private readonly BookingPaymentService $payments
+    ) {}
+
     public function create(int $propertyId, array $attributes): Booking
     {
         return DB::transaction(function () use ($propertyId, $attributes) {
@@ -25,6 +33,12 @@ class BookingService
 
             if (! $property) {
                 throw new ModelNotFoundException("Property #{$propertyId} not found.");
+            }
+
+            if ($property->host && ! $property->host->hasActiveSubscription()) {
+                throw new RuntimeException(
+                    "Rezervare refuzata: proprietatea #{$propertyId} nu apartine unei gazde cu abonament activ."
+                );
             }
 
             $checkIn = $attributes['check_in'] ?? null;
@@ -49,24 +63,20 @@ class BookingService
             }
 
             $attributes['property_id'] = $propertyId;
-            $attributes['reference'] ??= 'BK-'.strtoupper(\Illuminate\Support\Str::random(8));
+            $attributes['reference'] ??= 'BK-'.strtoupper(Str::random(8));
             $attributes['payment_status'] ??= 'pending';
 
             if (isset($attributes['guest_id']) && isset($attributes['total_price'])) {
                 try {
-                    $guest = \App\Models\User::find($attributes['guest_id']);
+                    $guest = User::find($attributes['guest_id']);
                     if ($guest) {
-                        $stripeCustomer = $guest->createOrGetStripeCustomer();
-                        $intent = Cashier::stripe()->paymentIntents->create([
-                            'amount' => (int) ($attributes['total_price'] * 100),
-                            'currency' => strtolower($attributes['currency'] ?? 'usd'),
-                            'customer' => $stripeCustomer->id,
-                            'metadata' => [
-                                'property_id' => $propertyId,
-                                'booking_reference' => $attributes['reference'],
-                            ],
-                        ]);
-                        $attributes['stripe_payment_intent_id'] = $intent->id;
+                        $attributes['stripe_payment_intent_id'] = $this->payments->createPaymentIntent(
+                            $guest,
+                            $property,
+                            (float) $attributes['total_price'],
+                            (string) ($attributes['currency'] ?? 'usd'),
+                            (string) ($attributes['reference'] ?? ''),
+                        );
                     }
                 } catch (\Exception $e) {
                     Log::error('Stripe payment intent failed', [
@@ -93,6 +103,8 @@ class BookingService
             Mail::to($booking->guest_email)->send(new BookingConfirmedMail($booking->fresh(['property'])));
         }
 
+        $this->notifyParties($booking, new BookingConfirmedNotification($booking));
+
         return $booking->refresh();
     }
 
@@ -111,7 +123,29 @@ class BookingService
             Mail::to($booking->guest_email)->send(new BookingCancelledMail($booking->fresh(['property']), $reason));
         }
 
+        $this->notifyParties($booking, new BookingCancelledNotification($booking, $reason));
+
         return $booking->refresh();
+    }
+
+    /**
+     * Notificare în-app către oaspete și gazdă (canal database).
+     */
+    private function notifyParties(Booking $booking, Notification $notification): void
+    {
+        $booking->loadMissing(['guest', 'property.host.user']);
+
+        $candidates = [$booking->guest, $booking->property?->host?->user];
+        $notified = [];
+
+        foreach ($candidates as $recipient) {
+            if ($recipient === null || isset($notified[$recipient->id])) {
+                continue;
+            }
+
+            $notified[$recipient->id] = true;
+            $recipient->notify($notification);
+        }
     }
 
     public function checkIn(Booking $booking): Booking
